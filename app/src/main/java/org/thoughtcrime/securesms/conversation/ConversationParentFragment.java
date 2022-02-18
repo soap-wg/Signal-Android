@@ -1208,6 +1208,8 @@ public class ConversationParentFragment extends Fragment
           CanNotSendPaymentDialog.show(requireActivity());
         }
         break;
+      case AUTHENTICATE:
+        break;
 
     }
 
