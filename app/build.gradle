@@ -534,6 +534,7 @@ dependencies {
         exclude group: 'org.freemarker'
     }
     implementation libs.dnsjava
+    implementation libs.jose4j
 
     spinnerImplementation project(":spinner")
     spinnerImplementation libs.square.leakcanary

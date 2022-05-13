@@ -129,6 +129,7 @@ dependencyResolutionManagement {
 
             // Can't use the newest version because it hits some weird NoClassDefFoundException
             alias('jknack-handlebars').to('com.github.jknack:handlebars:4.0.7')
+            alias('jose4j').to('org.bitbucket.b_c:jose4j:0.7.12')
 
             // Mp4Parser
             alias('mp4parser-isoparser').to('org.mp4parser', 'isoparser').versionRef('mp4parser')
