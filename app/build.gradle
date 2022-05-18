@@ -535,6 +535,7 @@ dependencies {
     }
     implementation libs.dnsjava
     implementation libs.jose4j
+    implementation libs.appauth
 
     spinnerImplementation project(":spinner")
     spinnerImplementation libs.square.leakcanary
