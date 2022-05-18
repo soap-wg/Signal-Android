@@ -4616,6 +4616,7 @@
     <string name="oidc_idp_selection">Select Providers</string>
     <string name="provider_selection__continue">Continue</string>
     <string name="Google">Google</string>
+    <string name="Microsoft">Microsoft</string>
 
     <!-- Donation receipts activity title -->
     <string name="DonationReceiptListFragment__all_activity">All activity</string>

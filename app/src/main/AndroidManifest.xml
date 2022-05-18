@@ -128,6 +128,23 @@
         android:name=".oidcauth.ProviderSelectionActivity"
         android:exported="false" />
 
+    <activity
+        android:name=".oidcauth.OIDCFlowActivity"
+        android:exported="false" />
+
+    <activity
+        android:name="net.openid.appauth.RedirectUriReceiverActivity"
+        tools:node="replace">
+        <intent-filter>
+            <action android:name="android.intent.action.VIEW"/>
+            <category android:name="android.intent.category.DEFAULT"/>
+            <category android:name="android.intent.category.BROWSABLE"/>
+            <data android:scheme="msauth"
+                android:host="org.thoughtcrime.securesms"
+                android:path="/mzt6kLeOL6MrO29SHvHxFO725UY="/>
+        </intent-filter>
+    </activity>
+
     <activity android:name=".WebRtcCallActivity"
               android:theme="@style/TextSecure.DarkTheme.WebRTCCall"
               android:excludeFromRecents="true"

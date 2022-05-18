@@ -2,27 +2,37 @@ package org.thoughtcrime.securesms.oidcauth;
 
 import androidx.annotation.NonNull;
 
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.thoughtcrime.securesms.R;
 
-import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Optional;
 
-public enum Provider implements Serializable {
-  GOOGLE(R.string.Google, "https://accounts.google.com/.well-known/openid-configuration");
+public enum Provider {
+  MICROSOFT(
+      R.string.Microsoft,
+      "https://login.microsoftonline.com/consumers/v2.0/.well-known/openid-configuration",
+      "ec8813c8-670b-4b23-a85b-d44c8b7e8521",
+      "msauth://org.thoughtcrime.securesms/mzt6kLeOL6MrO29SHvHxFO725UY%3D"
+  );
 
-  private final int    nameResource;
-  private final String discoveryUrl;
+  public static Optional<Provider> getByName(int nameResource) {
+    return Arrays.stream(Provider.values()).filter(provider -> provider.nameResource == nameResource).findFirst();
+  }
 
-  Provider(int nameResource, @NonNull String discoveryUrl) {
+  public final int    nameResource;
+  public final String discoveryUrl;
+  public final String clientId;
+  public final String redirectUri;
+
+  Provider(int nameResource,
+           @NonNull String discoveryUrl,
+           @NonNull String clientId,
+           @NonNull String redirectUri) {
     this.nameResource = nameResource;
     this.discoveryUrl = discoveryUrl;
-
-  }
-
-  public int getNameResource() {
-    return this.nameResource;
-  }
-
-  public String getDiscoveryUrl() {
-    return this.discoveryUrl;
+    this.clientId = clientId;
+    this.redirectUri = redirectUri;
   }
 }

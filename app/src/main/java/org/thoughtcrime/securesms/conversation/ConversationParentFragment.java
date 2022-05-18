@@ -244,6 +244,8 @@ import org.thoughtcrime.securesms.mms.StickerSlide;
 import org.thoughtcrime.securesms.mms.VideoSlide;
 import org.thoughtcrime.securesms.notifications.NotificationChannels;
 import org.thoughtcrime.securesms.notifications.v2.ConversationId;
+import org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity;
+import org.thoughtcrime.securesms.oidcauth.ProviderSelectionActivity;
 import org.thoughtcrime.securesms.payments.CanNotSendPaymentDialog;
 import org.thoughtcrime.securesms.permissions.Permissions;
 import org.thoughtcrime.securesms.profiles.spoofing.ReviewBannerView;
@@ -387,6 +389,7 @@ public class ConversationParentFragment extends Fragment
   private static final int SMS_DEFAULT         = 11;
   private static final int MEDIA_SENDER        = 12;
   private static final int PICK_IDP            = 13;
+  private static final int RECEIVE_TOKEN       = 14;
 
   private static final int     REQUEST_CODE_PIN_SHORTCUT = 902;
   private static final String  ACTION_PINNED_SHORTCUT    = "action_pinned_shortcut";
@@ -786,6 +789,15 @@ public class ConversationParentFragment extends Fragment
         }
       });
 
+      break;
+    case PICK_IDP:
+      Intent intent = new Intent(fragment.requireContext(), OIDCFlowActivity.class);
+      intent.putExtra(OIDCFlowActivity.SELECTED_PROVIDERS, data.getIntArrayExtra(ProviderSelectionActivity.SELECTED_PROVIDERS));
+      fragment.startActivityForResult(intent, RECEIVE_TOKEN);
+
+      break;
+    case RECEIVE_TOKEN:
+      // TODO:
       break;
     }
   }
