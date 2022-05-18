@@ -593,6 +593,7 @@ public class VerifyDisplayFragment extends Fragment implements ViewTreeObserver.
         case PROVIDER_SELECTION:
           Intent intent = new Intent(this.requireContext(), OIDCFlowActivity.class);
           intent.putExtra(OIDCFlowActivity.SELECTED_PROVIDERS, data.getIntArrayExtra(ProviderSelectionActivity.SELECTED_PROVIDERS));
+          intent.putExtra(OIDCFlowActivity.FINGERPRINT, this.fingerprint.getDisplayableFingerprint().getDisplayText());
           this.startActivityForResult(intent, TOKENS);
 
           break;

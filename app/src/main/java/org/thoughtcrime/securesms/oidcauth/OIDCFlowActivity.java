@@ -18,11 +18,21 @@ import net.openid.appauth.IdToken;
 import net.openid.appauth.ResponseTypeValues;
 import net.openid.appauth.TokenResponse;
 
+import org.greenrobot.eventbus.EventBus;
+import org.jose4j.jws.JsonWebSignature;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.signal.core.util.concurrent.SignalExecutors;
+import org.signal.core.util.concurrent.SimpleTask;
 import org.signal.core.util.logging.Log;
+import org.signal.libsignal.protocol.util.ByteUtil;
 import org.thoughtcrime.securesms.R;
+import org.thoughtcrime.securesms.backup.FullBackupBase;
+import org.thoughtcrime.securesms.util.Base64;
+import org.thoughtcrime.securesms.util.Util;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -36,13 +46,21 @@ public class OIDCFlowActivity extends AppCompatActivity {
   public static final String TAG = Log.tag(OIDCFlowActivity.class);
 
   public static final String SELECTED_PROVIDERS = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.IDPS";
+  public static final String FINGERPRINT        = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.FINGERPRINT";
   public static final String ID_TOKENS          = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.TOKENS";
+  private static final String NONCE             = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.NONCE";
+  private static final String AUTH_STATE        = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.AUTH_STATE";
+
+  private static final int DIGEST_ROUNDS = 1024;
 
   public static final int CODE = 0;
 
   protected       Queue<Provider>      providerQueue;
   protected final List<String>         idTokens = new LinkedList<>();
   protected       AuthorizationService authorizationService;
+  protected       AuthState            authState;
+  protected       String               nonce;
+  protected       String               fingerprint;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -51,7 +69,35 @@ public class OIDCFlowActivity extends AppCompatActivity {
 
     authorizationService = new AuthorizationService(this);
     providerQueue = getProviders(getIntent().getIntArrayExtra(SELECTED_PROVIDERS));
+    fingerprint = getIntent().getStringExtra(FINGERPRINT);
     nextFlow();
+  }
+
+  @Override protected void onSaveInstanceState(@NonNull Bundle outState) {
+    super.onSaveInstanceState(outState);
+
+    if (nonce != null) {
+      outState.putString(NONCE, nonce);
+    }
+
+    if (authState != null) {
+      outState.putString(AUTH_STATE, authState.jsonSerializeString());
+    }
+  }
+
+  @Override protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+    super.onRestoreInstanceState(savedInstanceState);
+
+    nonce = savedInstanceState.getString(NONCE);
+
+    String authStateJson = savedInstanceState.getString(AUTH_STATE);
+    if (authStateJson != null) {
+      try {
+        authState = AuthState.jsonDeserialize(authStateJson);
+      } catch (JSONException e) {
+        Log.e(TAG, "Cannot restore AuthState: " + e);
+      }
+    }
   }
 
   @Override protected void onDestroy() {
@@ -78,7 +124,34 @@ public class OIDCFlowActivity extends AppCompatActivity {
       setResult(RESULT_OK, resultIntent);
       finish();
     } else {
-      ceremony(providerQueue.poll());
+      SignalExecutors.UNBOUNDED.execute(() -> ceremony(providerQueue.poll()));
+    }
+  }
+
+  protected String genNonce() {
+    return genNonce(
+        Util.getSecretBytes(32),
+        Util.getSecretBytes(32),
+        fingerprint.getBytes()
+    );
+  }
+
+  protected String genNonce(byte[] trueNonce, byte[] salt, byte[] fp) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-512");
+      byte[]        hash   = fp;
+
+      digest.update(salt);
+      for (int i = 0; i < DIGEST_ROUNDS; i++) {
+        digest.update(hash);
+        hash = digest.digest(fp);
+      }
+
+      nonce = Base64.encodeBytes(trueNonce) + "&" + Base64.encodeBytes(ByteUtil.trim(hash, 32));
+      Log.i(TAG, "Generated nonce: " + nonce);
+      return nonce;
+    } catch (NoSuchAlgorithmException e) {
+      throw new AssertionError(e);
     }
   }
 
@@ -87,6 +160,7 @@ public class OIDCFlowActivity extends AppCompatActivity {
         Uri.parse(provider.discoveryUrl),
         ((serviceConfiguration, ex) -> {
           if (serviceConfiguration != null) {
+            authState = new AuthState(serviceConfiguration);
             dispatch(provider, serviceConfiguration);
           } else {
             logException(ex);
@@ -102,6 +176,7 @@ public class OIDCFlowActivity extends AppCompatActivity {
         ResponseTypeValues.CODE,
         Uri.parse(provider.redirectUri)
     ).setScope("openid email")
+     .setNonce(genNonce())
      .build();
     startActivityForResult(authorizationService.getAuthorizationRequestIntent(req), CODE);
   }
@@ -118,12 +193,19 @@ public class OIDCFlowActivity extends AppCompatActivity {
     } else {
       AuthorizationResponse response = AuthorizationResponse.fromIntent(data);
       AuthorizationException ex = AuthorizationException.fromIntent(data);
+      authState.update(response, ex);
 
       if (response != null) {
         authorizationService.performTokenRequest(
             response.createTokenExchangeRequest(),
             (tokenResponse, tokenEx) -> {
-              if (tokenResponse != null) {
+              authState.update(tokenResponse, tokenEx);
+
+              if (tokenResponse != null && authState.getParsedIdToken() != null) {
+                if (!authState.getParsedIdToken().nonce.equals(nonce)) {
+                  Log.e(TAG, "Supplied nonce differs");
+                }
+
                 idTokens.add(tokenResponse.idToken);
                 nextFlow();
               } else {
