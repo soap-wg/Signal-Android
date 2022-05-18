@@ -388,8 +388,6 @@ public class ConversationParentFragment extends Fragment
   public static  final int PICK_GIF            = 10;
   private static final int SMS_DEFAULT         = 11;
   private static final int MEDIA_SENDER        = 12;
-  private static final int PICK_IDP            = 13;
-  private static final int RECEIVE_TOKEN       = 14;
 
   private static final int     REQUEST_CODE_PIN_SHORTCUT = 902;
   private static final String  ACTION_PINNED_SHORTCUT    = "action_pinned_shortcut";
@@ -789,15 +787,6 @@ public class ConversationParentFragment extends Fragment
         }
       });
 
-      break;
-    case PICK_IDP:
-      Intent intent = new Intent(fragment.requireContext(), OIDCFlowActivity.class);
-      intent.putExtra(OIDCFlowActivity.SELECTED_PROVIDERS, data.getIntArrayExtra(ProviderSelectionActivity.SELECTED_PROVIDERS));
-      fragment.startActivityForResult(intent, RECEIVE_TOKEN);
-
-      break;
-    case RECEIVE_TOKEN:
-      // TODO:
       break;
     }
   }
@@ -1221,10 +1210,6 @@ public class ConversationParentFragment extends Fragment
           CanNotSendPaymentDialog.show(requireActivity());
         }
         break;
-      case AUTHENTICATE:
-        AttachmentManager.selectAuthenticate(this, PICK_IDP);
-        break;
-
     }
 
     container.hideCurrentInput(composeText);

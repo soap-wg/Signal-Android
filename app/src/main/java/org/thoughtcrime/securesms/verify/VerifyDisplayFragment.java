@@ -2,6 +2,7 @@ package org.thoughtcrime.securesms.verify;
 
 import android.animation.TypeEvaluator;
 import android.animation.ValueAnimator;
+import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -43,10 +44,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import org.signal.core.util.ThreadUtil;
 import org.signal.core.util.concurrent.SignalExecutors;
 import org.signal.core.util.logging.Log;
-import org.signal.libsignal.protocol.IdentityKey;
-import org.signal.libsignal.protocol.fingerprint.Fingerprint;
-import org.signal.libsignal.protocol.fingerprint.FingerprintVersionMismatchException;
-import org.signal.libsignal.protocol.fingerprint.NumericFingerprintGenerator;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.crypto.IdentityKeyParcelable;
 import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
@@ -54,6 +51,8 @@ import org.thoughtcrime.securesms.database.IdentityDatabase;
 import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
 import org.thoughtcrime.securesms.jobs.MultiDeviceVerifiedUpdateJob;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
+import org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity;
+import org.thoughtcrime.securesms.oidcauth.ProviderSelectionActivity;
 import org.thoughtcrime.securesms.qr.QrCode;
 import org.thoughtcrime.securesms.recipients.LiveRecipient;
 import org.thoughtcrime.securesms.recipients.Recipient;
@@ -64,6 +63,10 @@ import org.thoughtcrime.securesms.util.IdentityUtil;
 import org.thoughtcrime.securesms.util.Util;
 import org.thoughtcrime.securesms.util.ViewUtil;
 import org.signal.core.util.concurrent.SimpleTask;
+import org.whispersystems.libsignal.IdentityKey;
+import org.whispersystems.libsignal.fingerprint.Fingerprint;
+import org.whispersystems.libsignal.fingerprint.FingerprintVersionMismatchException;
+import org.whispersystems.libsignal.fingerprint.NumericFingerprintGenerator;
 import org.whispersystems.signalservice.api.SignalSessionLock;
 
 import java.nio.charset.Charset;
@@ -81,6 +84,11 @@ public class VerifyDisplayFragment extends Fragment implements ViewTreeObserver.
   private static final String LOCAL_IDENTITY  = "local_identity";
   private static final String LOCAL_NUMBER    = "local_number";
   private static final String VERIFIED_STATE  = "verified_state";
+  private static final String OIDC_PROVIDERS  = "oidc_providers";
+  private static final String ID_TOKENS       = "id_tokens";
+
+  private static final int PROVIDER_SELECTION = 0;
+  private static final int TOKENS = 1;
 
   private LiveRecipient recipient;
   private IdentityKey   localIdentity;
@@ -98,6 +106,7 @@ public class VerifyDisplayFragment extends Fragment implements ViewTreeObserver.
   private TextView     description;
   private Callback     callback;
   private Button       verifyButton;
+  private Button       oidcButton;
   private View         toolbarShadow;
   private View         bottomShadow;
 
@@ -152,6 +161,7 @@ public class VerifyDisplayFragment extends Fragment implements ViewTreeObserver.
     this.qrCodeContainer  = view.findViewById(R.id.qr_code_container);
     this.qrCode           = view.findViewById(R.id.qr_code);
     this.verifyButton     = view.findViewById(R.id.verify_button);
+    this.oidcButton       = view.findViewById(R.id.oidc_verify_button);
     this.qrVerified       = view.findViewById(R.id.qr_verified);
     this.description      = view.findViewById(R.id.description);
     this.tapLabel         = view.findViewById(R.id.tap_label);
@@ -175,6 +185,9 @@ public class VerifyDisplayFragment extends Fragment implements ViewTreeObserver.
 
     updateVerifyButton(getArguments().getBoolean(VERIFIED_STATE, false), false);
     this.verifyButton.setOnClickListener((button -> updateVerifyButton(!currentVerifiedState, true)));
+
+    this.oidcButton.setEnabled(false);
+    this.oidcButton.setOnClickListener(button -> initializeFlows());
 
     this.scrollView.getViewTreeObserver().addOnScrollChangedListener(this);
 
@@ -243,6 +256,7 @@ public class VerifyDisplayFragment extends Fragment implements ViewTreeObserver.
                      if (getActivity() == null) return;
                      VerifyDisplayFragment.this.fingerprint = fingerprint;
                      setFingerprintViews(fingerprint, true);
+                     this.oidcButton.setEnabled(true);
                      initializeOptionsMenu();
                    });
   }
@@ -566,6 +580,27 @@ public class VerifyDisplayFragment extends Fragment implements ViewTreeObserver.
     }
   }
 
+  private void initializeFlows() {
+    Intent intent = new Intent(this.requireContext(), ProviderSelectionActivity.class);
+    this.startActivityForResult(intent, PROVIDER_SELECTION);
+  }
+
+  @Override public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
+
+    if (resultCode == Activity.RESULT_OK) {
+      switch (requestCode) {
+        case PROVIDER_SELECTION:
+          Intent intent = new Intent(this.requireContext(), OIDCFlowActivity.class);
+          intent.putExtra(OIDCFlowActivity.SELECTED_PROVIDERS, data.getIntArrayExtra(ProviderSelectionActivity.SELECTED_PROVIDERS));
+          this.startActivityForResult(intent, TOKENS);
+
+          break;
+        case TOKENS:
+          break;
+      }
+    }
+  }
 
   @Override public void onScrollChanged() {
     if (scrollView.canScrollVertically(-1)) {

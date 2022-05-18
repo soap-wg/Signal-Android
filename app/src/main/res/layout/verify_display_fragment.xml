@@ -268,15 +268,40 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="parent">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/verify_button"
-            style="@style/Signal.Widget.Button.Large.Tonal"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/dsl_settings_gutter"
-            android:layout_marginTop="16dp"
-            android:layout_marginEnd="@dimen/dsl_settings_gutter"
-            android:text="@string/verify_display_fragment__mark_as_verified"
-            android:textAllCaps="false" />
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/verify_button"
+                style="@style/Signal.Widget.Button.Large.Tonal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="48dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:text="@string/verify_display_fragment__mark_as_verified"
+                android:textAllCaps="false"
+                android:textColor="@color/signal_accent_primary"
+                app:backgroundTint="@color/signal_inverse_transparent_10" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/oidc_verify_button"
+                style="@style/Signal.Widget.Button.Large.Tonal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginEnd="48dp"
+                android:layout_weight="1"
+                android:text="@string/verify_display_fragment__oidc_verify"
+                android:textAllCaps="false"
+                android:textColor="@color/signal_accent_primary"
+                app:backgroundTint="@color/signal_inverse_transparent_10" />
+
+        </LinearLayout>
+
     </FrameLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

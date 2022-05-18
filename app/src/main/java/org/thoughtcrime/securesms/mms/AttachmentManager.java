@@ -55,7 +55,6 @@ import org.thoughtcrime.securesms.database.AttachmentDatabase;
 import org.thoughtcrime.securesms.giph.ui.GiphyActivity;
 import org.thoughtcrime.securesms.maps.PlacePickerActivity;
 import org.thoughtcrime.securesms.mediasend.v2.MediaSelectionActivity;
-import org.thoughtcrime.securesms.oidcauth.ProviderSelectionActivity;
 import org.thoughtcrime.securesms.payments.create.CreatePaymentFragmentArgs;
 import org.thoughtcrime.securesms.payments.preferences.PaymentsActivity;
 import org.thoughtcrime.securesms.payments.preferences.model.PayeeParcelable;
@@ -423,11 +422,6 @@ public class AttachmentManager {
     intent.putExtra(PaymentsActivity.EXTRA_PAYMENTS_STARTING_ACTION, R.id.action_directly_to_createPayment);
     intent.putExtra(PaymentsActivity.EXTRA_STARTING_ARGUMENTS, new CreatePaymentFragmentArgs.Builder(new PayeeParcelable(recipientId)).build().toBundle());
     fragment.startActivity(intent);
-  }
-
-  public static void selectAuthenticate(@NonNull Fragment fragment, int requestCode) {
-    Intent intent = new Intent(fragment.requireContext(), ProviderSelectionActivity.class);
-    fragment.startActivityForResult(intent, requestCode);
   }
 
   private @Nullable Uri getSlideUri() {
