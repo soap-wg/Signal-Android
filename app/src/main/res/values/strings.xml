@@ -4617,7 +4617,6 @@
     <string name="provider_selection__continue">Continue</string>
     <string name="Google">Google</string>
     <string name="Microsoft">Microsoft</string>
-    <string name="verify_display_fragment__oidc_verify">OIDC Verify</string>
 
     <!-- Donation receipts activity title -->
     <string name="DonationReceiptListFragment__all_activity">All activity</string>

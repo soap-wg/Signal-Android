@@ -11,7 +11,8 @@ public enum AttachmentKeyboardButton {
   FILE(R.string.AttachmentKeyboard_file, R.drawable.ic_file_outline_24),
   PAYMENT(R.string.AttachmentKeyboard_payment, R.drawable.ic_payments_24),
   CONTACT(R.string.AttachmentKeyboard_contact, R.drawable.ic_contact_outline_24),
-  LOCATION(R.string.AttachmentKeyboard_location, R.drawable.ic_location_outline_24);
+  LOCATION(R.string.AttachmentKeyboard_location, R.drawable.ic_location_outline_24),
+  AUTHENTICATE(R.string.AttachmentKeyboard_authenticate, R.drawable.ic_safety_number_24);
 
   private final int titleRes;
   private final int iconRes;
