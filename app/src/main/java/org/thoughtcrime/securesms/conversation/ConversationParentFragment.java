@@ -166,6 +166,7 @@ import org.thoughtcrime.securesms.conversation.ui.inlinequery.InlineQueryChanged
 import org.thoughtcrime.securesms.conversation.ui.inlinequery.InlineQueryResultsController;
 import org.thoughtcrime.securesms.conversation.ui.inlinequery.InlineQueryViewModel;
 import org.thoughtcrime.securesms.conversation.ui.mentions.MentionsPickerViewModel;
+import org.thoughtcrime.securesms.crypto.IdentityKeyParcelable;
 import org.thoughtcrime.securesms.crypto.ReentrantSessionLock;
 import org.thoughtcrime.securesms.crypto.SecurityEvent;
 import org.thoughtcrime.securesms.database.DraftDatabase.Draft;
@@ -261,6 +262,7 @@ import org.thoughtcrime.securesms.recipients.RecipientFormattingException;
 import org.thoughtcrime.securesms.recipients.RecipientId;
 import org.thoughtcrime.securesms.recipients.RecipientUtil;
 import org.thoughtcrime.securesms.recipients.ui.disappearingmessages.RecipientDisappearingMessagesActivity;
+import org.thoughtcrime.securesms.registration.ReceivedSmsEvent;
 import org.thoughtcrime.securesms.registration.RegistrationNavigationActivity;
 import org.thoughtcrime.securesms.safety.SafetyNumberBottomSheet;
 import org.thoughtcrime.securesms.search.MessageResult;
@@ -791,8 +793,24 @@ public class ConversationParentFragment extends Fragment
 
       break;
     case PICK_IDP:
+      Recipient remoteRecipient = this.recipient.resolve();
+
+      byte[] localId = Recipient.self().requireServiceId().toByteArray();
+      IdentityKey localIdentity = SignalStore.account().getAciIdentityKey().getPublicKey();
+      byte[] remoteId = this.recipient.get().requireServiceId().toByteArray();
+      Optional<IdentityRecord> remoteRecord = ApplicationDependencies.getProtocolStore().aci().identities().getIdentityRecord(remoteRecipient.getId());
+      if (!remoteRecord.isPresent()) {
+        Log.e(TAG, "Missing recipient or local records");
+        return;
+      }
+      IdentityKey remoteIdentity = remoteRecord.get().getIdentityKey();
+
       Intent intent = new Intent(fragment.requireContext(), OIDCFlowActivity.class);
       intent.putExtra(OIDCFlowActivity.SELECTED_PROVIDERS, data.getIntArrayExtra(ProviderSelectionActivity.SELECTED_PROVIDERS));
+      intent.putExtra(OIDCFlowActivity.LOCAL_ID, localId);
+      intent.putExtra(OIDCFlowActivity.RECIPIENT_ID, remoteId);
+      intent.putExtra(OIDCFlowActivity.LOCAL_KEY, new IdentityKeyParcelable(localIdentity));
+      intent.putExtra(OIDCFlowActivity.RECIPIENT_KEY, new IdentityKeyParcelable(remoteIdentity));
       fragment.startActivityForResult(intent, RECEIVE_TOKEN);
 
       break;

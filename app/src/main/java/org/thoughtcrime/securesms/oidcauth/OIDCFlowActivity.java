@@ -28,6 +28,8 @@ import org.signal.core.util.logging.Log;
 import org.signal.libsignal.protocol.util.ByteUtil;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.backup.FullBackupBase;
+import org.thoughtcrime.securesms.crypto.IdentityKeyParcelable;
+import org.thoughtcrime.securesms.recipients.RecipientId;
 import org.thoughtcrime.securesms.util.Base64;
 import org.thoughtcrime.securesms.util.Util;
 
@@ -45,22 +47,24 @@ public class OIDCFlowActivity extends AppCompatActivity {
 
   public static final String TAG = Log.tag(OIDCFlowActivity.class);
 
-  public static final String SELECTED_PROVIDERS = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.IDPS";
-  public static final String FINGERPRINT        = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.FINGERPRINT";
-  public static final String ID_TOKENS          = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.TOKENS";
-  private static final String NONCE             = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.NONCE";
-  private static final String AUTH_STATE        = "org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity.AUTH_STATE";
+  // Arguments and return values
+  public static final String SELECTED_PROVIDERS = "SELECTED_PROVIDERS";
+  public static final String LOCAL_ID           = "LOCAL_ID";
+  public static final String RECIPIENT_ID       = "RECIPIENT_ID";
+  public static final String LOCAL_KEY          = "LOCAL_KEY";
+  public static final String RECIPIENT_KEY      = "RECIPIENT_KEY";
+  public static final String ID_TOKENS          = "TOKENS";
 
-  private static final int DIGEST_ROUNDS = 1024;
+  // Persistence
+  private static final String AUTH_STATE        = "AUTH_STATE";
 
   public static final int CODE = 0;
 
+  protected       AuthorizationService authorizationService;
   protected       Queue<Provider>      providerQueue;
   protected final List<String>         idTokens = new LinkedList<>();
-  protected       AuthorizationService authorizationService;
+  protected       TokenHandler         tokenHandler;
   protected       AuthState            authState;
-  protected       String               nonce;
-  protected       String               fingerprint;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -69,16 +73,18 @@ public class OIDCFlowActivity extends AppCompatActivity {
 
     authorizationService = new AuthorizationService(this);
     providerQueue = getProviders(getIntent().getIntArrayExtra(SELECTED_PROVIDERS));
-    fingerprint = getIntent().getStringExtra(FINGERPRINT);
-    nextFlow();
+
+    tokenHandler = new TokenHandler(
+        getIntent().getByteArrayExtra(LOCAL_ID),
+        getIntent().getByteArrayExtra(RECIPIENT_ID),
+        ((IdentityKeyParcelable) getIntent().getParcelableExtra(LOCAL_KEY)).get(),
+        ((IdentityKeyParcelable) getIntent().getParcelableExtra(RECIPIENT_KEY)).get()
+    );
+    initializeFingerprintAndRun();
   }
 
   @Override protected void onSaveInstanceState(@NonNull Bundle outState) {
     super.onSaveInstanceState(outState);
-
-    if (nonce != null) {
-      outState.putString(NONCE, nonce);
-    }
 
     if (authState != null) {
       outState.putString(AUTH_STATE, authState.jsonSerializeString());
@@ -87,8 +93,6 @@ public class OIDCFlowActivity extends AppCompatActivity {
 
   @Override protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
     super.onRestoreInstanceState(savedInstanceState);
-
-    nonce = savedInstanceState.getString(NONCE);
 
     String authStateJson = savedInstanceState.getString(AUTH_STATE);
     if (authStateJson != null) {
@@ -117,6 +121,10 @@ public class OIDCFlowActivity extends AppCompatActivity {
                  .collect(Collectors.toCollection(LinkedList::new));
   }
 
+  protected void initializeFingerprintAndRun() {
+    tokenHandler.generateFingerprint(this::nextFlow);
+  }
+
   protected void nextFlow() {
     if (providerQueue.isEmpty()) {
       Intent resultIntent = new Intent();
@@ -125,33 +133,6 @@ public class OIDCFlowActivity extends AppCompatActivity {
       finish();
     } else {
       SignalExecutors.UNBOUNDED.execute(() -> ceremony(providerQueue.poll()));
-    }
-  }
-
-  protected String genNonce() {
-    return genNonce(
-        Util.getSecretBytes(32),
-        Util.getSecretBytes(32),
-        fingerprint.getBytes()
-    );
-  }
-
-  protected String genNonce(byte[] trueNonce, byte[] salt, byte[] fp) {
-    try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-512");
-      byte[]        hash   = fp;
-
-      digest.update(salt);
-      for (int i = 0; i < DIGEST_ROUNDS; i++) {
-        digest.update(hash);
-        hash = digest.digest(fp);
-      }
-
-      nonce = Base64.encodeBytes(trueNonce) + "&" + Base64.encodeBytes(ByteUtil.trim(hash, 32));
-      Log.i(TAG, "Generated nonce: " + nonce);
-      return nonce;
-    } catch (NoSuchAlgorithmException e) {
-      throw new AssertionError(e);
     }
   }
 
@@ -170,13 +151,14 @@ public class OIDCFlowActivity extends AppCompatActivity {
   }
 
   protected void dispatch(Provider provider, AuthorizationServiceConfiguration serviceConfiguration) {
+    tokenHandler.newNonce();
     AuthorizationRequest req = new AuthorizationRequest.Builder(
         serviceConfiguration,
         provider.clientId,
         ResponseTypeValues.CODE,
         Uri.parse(provider.redirectUri)
     ).setScope("openid email")
-     .setNonce(genNonce())
+     .setNonce(tokenHandler.getCompoundNonce())
      .build();
     startActivityForResult(authorizationService.getAuthorizationRequestIntent(req), CODE);
   }
@@ -202,11 +184,15 @@ public class OIDCFlowActivity extends AppCompatActivity {
               authState.update(tokenResponse, tokenEx);
 
               if (tokenResponse != null && authState.getParsedIdToken() != null) {
-                if (!authState.getParsedIdToken().nonce.equals(nonce)) {
+                if (authState.getParsedIdToken().nonce == null) {
+                  Log.e(TAG, "No nonce supplied");
+                } else if (!authState.getParsedIdToken().nonce.equals(tokenHandler.getCompoundNonce())) {
                   Log.e(TAG, "Supplied nonce differs");
+                } else {
+                  // TODO: Save salts
+                  idTokens.add(tokenResponse.idToken);
                 }
 
-                idTokens.add(tokenResponse.idToken);
                 nextFlow();
               } else {
                 logException(tokenEx);
