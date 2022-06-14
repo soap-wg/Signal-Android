@@ -794,24 +794,9 @@ public class ConversationParentFragment extends Fragment
 
       break;
     case PICK_IDP:
-      Recipient remoteRecipient = this.recipient.resolve();
-
-      byte[] localId = Recipient.self().requireServiceId().toByteArray();
-      IdentityKey localIdentity = SignalStore.account().getAciIdentityKey().getPublicKey();
-      byte[] remoteId = this.recipient.get().requireServiceId().toByteArray();
-      Optional<IdentityRecord> remoteRecord = ApplicationDependencies.getProtocolStore().aci().identities().getIdentityRecord(remoteRecipient.getId());
-      if (!remoteRecord.isPresent()) {
-        Log.e(TAG, "Missing recipient or local records");
-        return;
-      }
-      IdentityKey remoteIdentity = remoteRecord.get().getIdentityKey();
-
       Intent intent = new Intent(fragment.requireContext(), OIDCFlowActivity.class);
       intent.putExtra(OIDCFlowActivity.SELECTED_PROVIDERS, data.getIntArrayExtra(ProviderSelectionActivity.SELECTED_PROVIDERS));
-      intent.putExtra(OIDCFlowActivity.LOCAL_ID, localId);
-      intent.putExtra(OIDCFlowActivity.RECIPIENT_ID, remoteId);
-      intent.putExtra(OIDCFlowActivity.LOCAL_KEY, new IdentityKeyParcelable(localIdentity));
-      intent.putExtra(OIDCFlowActivity.RECIPIENT_KEY, new IdentityKeyParcelable(remoteIdentity));
+      intent.putExtra(OIDCFlowActivity.RECIPIENT_ID, this.recipient.getId());
       this.startActivityForResult(intent, RECEIVE_TOKEN);
 
       break;

@@ -8,18 +8,23 @@ import org.jose4j.jwt.consumer.InvalidJwtException;
 import org.jose4j.jwt.consumer.JwtConsumer;
 import org.jose4j.jwt.consumer.JwtConsumerBuilder;
 import org.jose4j.keys.resolvers.HttpsJwksVerificationKeyResolver;
+import org.signal.core.util.concurrent.SimpleTask;
 import org.signal.core.util.logging.Log;
+import org.signal.libsignal.protocol.IdentityKey;
+import org.signal.libsignal.protocol.fingerprint.Fingerprint;
+import org.signal.libsignal.protocol.fingerprint.NumericFingerprintGenerator;
+import org.signal.libsignal.protocol.util.ByteUtil;
+import org.thoughtcrime.securesms.database.model.IdentityRecord;
+import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
+import org.thoughtcrime.securesms.keyvalue.SignalStore;
+import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.util.Base64;
 import org.thoughtcrime.securesms.util.Util;
-import org.thoughtcrime.securesms.util.concurrent.SimpleTask;
-import org.whispersystems.libsignal.IdentityKey;
-import org.whispersystems.libsignal.fingerprint.Fingerprint;
-import org.whispersystems.libsignal.fingerprint.NumericFingerprintGenerator;
-import org.whispersystems.libsignal.util.ByteUtil;
 
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Optional;
 
 public class TokenHandler {
 
@@ -36,6 +41,34 @@ public class TokenHandler {
   private byte[] salt;
   private byte[] hash;
   private String compoundNonce;
+
+  public static TokenHandler forRecipientAsSender(Recipient sender) {
+    byte[]                   localId       = Recipient.self().requireServiceId().toByteArray();
+    IdentityKey              localIdentity = SignalStore.account().getAciIdentityKey().getPublicKey();
+    byte[]                   remoteId     = sender.requireServiceId().toByteArray();
+    Optional<IdentityRecord> remoteRecord = ApplicationDependencies.getProtocolStore().aci().identities().getIdentityRecord(sender.getId());
+
+    if (!remoteRecord.isPresent()) {
+      Log.e(TAG, "Missing remote keys");
+      throw new AssertionError();
+    }
+
+    return new TokenHandler(remoteId, localId, remoteRecord.get().getIdentityKey(), localIdentity);
+  }
+
+  public static TokenHandler forRecipientAsReceiver(Recipient receiver) {
+    byte[]                   localId       = Recipient.self().requireServiceId().toByteArray();
+    IdentityKey              localIdentity = SignalStore.account().getAciIdentityKey().getPublicKey();
+    byte[]                   remoteId      = receiver.requireServiceId().toByteArray();
+    Optional<IdentityRecord> remoteRecord  = ApplicationDependencies.getProtocolStore().aci().identities().getIdentityRecord(receiver.getId());
+
+    if (!remoteRecord.isPresent()) {
+      Log.e(TAG, "Missing remote keys");
+      throw new AssertionError();
+    }
+
+    return new TokenHandler(localId, remoteId, localIdentity,  remoteRecord.get().getIdentityKey());
+  }
 
   public TokenHandler(byte[] senderId,
                       byte[] receiverId,

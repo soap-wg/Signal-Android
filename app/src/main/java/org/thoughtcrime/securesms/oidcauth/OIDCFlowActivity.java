@@ -29,6 +29,7 @@ import org.signal.libsignal.protocol.util.ByteUtil;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.backup.FullBackupBase;
 import org.thoughtcrime.securesms.crypto.IdentityKeyParcelable;
+import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.RecipientId;
 import org.thoughtcrime.securesms.util.Base64;
 import org.thoughtcrime.securesms.util.Util;
@@ -49,10 +50,7 @@ public class OIDCFlowActivity extends AppCompatActivity {
 
   // Arguments and return values
   public static final String SELECTED_PROVIDERS = "SELECTED_PROVIDERS";
-  public static final String LOCAL_ID           = "LOCAL_ID";
   public static final String RECIPIENT_ID       = "RECIPIENT_ID";
-  public static final String LOCAL_KEY          = "LOCAL_KEY";
-  public static final String RECIPIENT_KEY      = "RECIPIENT_KEY";
   public static final String ID_TOKENS          = "TOKENS";
   public static final String SALT               = "SALT";
 
@@ -62,6 +60,7 @@ public class OIDCFlowActivity extends AppCompatActivity {
   public static final int CODE = 0;
 
   protected       AuthorizationService authorizationService;
+  protected       RecipientId          recipientId;
   protected       Queue<Provider>      providerQueue;
   protected final List<String>         idTokens = new LinkedList<>();
   protected       TokenHandler         tokenHandler;
@@ -72,15 +71,10 @@ public class OIDCFlowActivity extends AppCompatActivity {
     super.onCreate(savedInstanceState);
     setContentView(R.layout.activity_oidcflow);
 
+    recipientId = getIntent().getParcelableExtra(RECIPIENT_ID);
     authorizationService = new AuthorizationService(this);
     providerQueue = getProviders(getIntent().getIntArrayExtra(SELECTED_PROVIDERS));
 
-    tokenHandler = new TokenHandler(
-        getIntent().getByteArrayExtra(LOCAL_ID),
-        getIntent().getByteArrayExtra(RECIPIENT_ID),
-        ((IdentityKeyParcelable) getIntent().getParcelableExtra(LOCAL_KEY)).get(),
-        ((IdentityKeyParcelable) getIntent().getParcelableExtra(RECIPIENT_KEY)).get()
-    );
     initializeFingerprintAndRun();
   }
 
@@ -123,7 +117,13 @@ public class OIDCFlowActivity extends AppCompatActivity {
   }
 
   protected void initializeFingerprintAndRun() {
-    tokenHandler.generateFingerprint(this::nextFlow);
+    SimpleTask.run(
+        () -> Recipient.resolved(recipientId),
+        recipient -> {
+          tokenHandler = TokenHandler.forRecipientAsReceiver(recipient);
+          tokenHandler.generateFingerprint(this::nextFlow);
+        }
+    );
   }
 
   protected void nextFlow() {
