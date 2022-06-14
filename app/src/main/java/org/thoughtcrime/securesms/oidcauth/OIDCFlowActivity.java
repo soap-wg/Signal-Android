@@ -54,6 +54,7 @@ public class OIDCFlowActivity extends AppCompatActivity {
   public static final String LOCAL_KEY          = "LOCAL_KEY";
   public static final String RECIPIENT_KEY      = "RECIPIENT_KEY";
   public static final String ID_TOKENS          = "TOKENS";
+  public static final String SALT               = "SALT";
 
   // Persistence
   private static final String AUTH_STATE        = "AUTH_STATE";
@@ -129,6 +130,7 @@ public class OIDCFlowActivity extends AppCompatActivity {
     if (providerQueue.isEmpty()) {
       Intent resultIntent = new Intent();
       resultIntent.putExtra(ID_TOKENS, idTokens.toArray(new String[0]));
+      resultIntent.putExtra(SALT, tokenHandler.getSalt());
       setResult(RESULT_OK, resultIntent);
       finish();
     } else {
@@ -189,7 +191,6 @@ public class OIDCFlowActivity extends AppCompatActivity {
                 } else if (!authState.getParsedIdToken().nonce.equals(tokenHandler.getCompoundNonce())) {
                   Log.e(TAG, "Supplied nonce differs");
                 } else {
-                  // TODO: Save salts
                   idTokens.add(tokenResponse.idToken);
                 }
 
