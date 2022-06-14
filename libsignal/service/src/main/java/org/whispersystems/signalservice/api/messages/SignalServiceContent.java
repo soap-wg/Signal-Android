@@ -678,6 +678,7 @@ public final class SignalServiceContent {
     Optional<SignalServiceGroupV2> groupContext = Optional.ofNullable(groupInfoV2);
 
     List<SignalServiceAttachment>            attachments      = new LinkedList<>();
+    boolean                                  idTokens         = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.ID_TOKENS_VALUE              ) != 0);
     boolean                                  endSession       = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.END_SESSION_VALUE            ) != 0);
     boolean                                  expirationUpdate = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.EXPIRATION_TIMER_UPDATE_VALUE) != 0);
     boolean                                  profileKeyUpdate = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.PROFILE_KEY_UPDATE_VALUE     ) != 0);
@@ -725,6 +726,7 @@ public final class SignalServiceContent {
                                         groupInfoV2,
                                         attachments,
                                         content.hasBody() ? content.getBody() : null,
+                                        idTokens,
                                         endSession,
                                         content.getExpireTimer(),
                                         expirationUpdate,

@@ -78,6 +78,7 @@ import org.thoughtcrime.securesms.mms.OutgoingMediaMessage;
 import org.thoughtcrime.securesms.mms.OutgoingSecureMediaMessage;
 import org.thoughtcrime.securesms.mms.QuoteModel;
 import org.thoughtcrime.securesms.mms.SlideDeck;
+import org.thoughtcrime.securesms.oidcauth.OutgoingIdTokenMessage;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.RecipientId;
 import org.thoughtcrime.securesms.revealable.ViewOnceExpirationInfo;
@@ -1701,6 +1702,8 @@ public class MmsDatabase extends MessageDatabase {
           return new OutgoingGroupUpdateMessage(recipient, new MessageGroupContext(body, Types.isGroupV2(outboxType)), attachments, timestamp, 0, false, quote, contacts, previews, mentions);
         } else if (Types.isExpirationTimerUpdate(outboxType)) {
           return new OutgoingExpirationUpdateMessage(recipient, timestamp, expiresIn);
+        } else if (Types.isIdTokenType(outboxType)) {
+          return new OutgoingIdTokenMessage(recipient, body, timestamp, expiresIn);
         }
 
         GiftBadge giftBadge = null;
@@ -1937,6 +1940,10 @@ public class MmsDatabase extends MessageDatabase {
       type |= Types.SPECIAL_TYPE_GIFT_BADGE;
     }
 
+    if (retrieved.isIdToken()) {
+      type |= Types.MESSAGE_ID_TOKEN_BIT;
+    }
+
     return insertMessageInbox(retrieved, "", threadId, type);
   }
 
@@ -2102,6 +2109,10 @@ public class MmsDatabase extends MessageDatabase {
       }
 
       type |= Types.SPECIAL_TYPE_GIFT_BADGE;
+    }
+
+    if (message.isIdTokenMessage()) {
+      type |= Types.MESSAGE_ID_TOKEN_BIT;
     }
 
     Map<RecipientId, EarlyReceiptCache.Receipt> earlyDeliveryReceipts = earlyDeliveryReceiptCache.remove(message.getSentTimeMillis());

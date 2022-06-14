@@ -29,6 +29,7 @@ public class SignalServiceDataMessage {
   private final Optional<String>                        body;
   private final Optional<SignalServiceGroupV2>          group;
   private final Optional<byte[]>                        profileKey;
+  private final boolean                                 idTokens;
   private final boolean                                 endSession;
   private final boolean                                 expirationUpdate;
   private final int                                     expiresInSeconds;
@@ -60,6 +61,7 @@ public class SignalServiceDataMessage {
                            SignalServiceGroupV2 groupV2,
                            List<SignalServiceAttachment> attachments,
                            String body,
+                           boolean idTokens,
                            boolean endSession,
                            int expiresInSeconds,
                            boolean expirationUpdate,
@@ -81,6 +83,7 @@ public class SignalServiceDataMessage {
     this.group            = Optional.ofNullable(groupV2);
     this.timestamp        = timestamp;
     this.body             = OptionalUtil.absentIfEmpty(body);
+    this.idTokens         = idTokens;
     this.endSession       = endSession;
     this.expiresInSeconds = expiresInSeconds;
     this.expirationUpdate = expirationUpdate;
@@ -151,6 +154,10 @@ public class SignalServiceDataMessage {
    */
   public Optional<SignalServiceGroupV2> getGroupContext() {
     return group;
+  }
+
+  public boolean isIdTokens() {
+    return idTokens;
   }
 
   public boolean isEndSession() {
@@ -272,6 +279,7 @@ public class SignalServiceDataMessage {
     private long                 timestamp;
     private SignalServiceGroupV2 groupV2;
     private String               body;
+    private boolean              idTokens;
     private boolean              endSession;
     private int                  expiresInSeconds;
     private boolean              expirationUpdate;
@@ -311,6 +319,15 @@ public class SignalServiceDataMessage {
 
     public Builder withBody(String body) {
       this.body = body;
+      return this;
+    }
+
+    public Builder asIdTokenMessage() {
+      return asIdTokenMessage(true);
+    }
+
+    public Builder asIdTokenMessage(boolean idTokens) {
+      this.idTokens = idTokens;
       return this;
     }
 
@@ -414,7 +431,7 @@ public class SignalServiceDataMessage {
 
     public SignalServiceDataMessage build() {
       if (timestamp == 0) timestamp = System.currentTimeMillis();
-      return new SignalServiceDataMessage(timestamp, groupV2, attachments, body, endSession,
+      return new SignalServiceDataMessage(timestamp, groupV2, attachments, body, idTokens, endSession,
                                           expiresInSeconds, expirationUpdate, profileKey,
                                           profileKeyUpdate, quote, sharedContacts, previews,
                                           mentions, sticker, viewOnce, reaction, remoteDelete,

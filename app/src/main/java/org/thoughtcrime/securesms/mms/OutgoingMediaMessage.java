@@ -193,6 +193,10 @@ public class OutgoingMediaMessage {
     return false;
   }
 
+  public boolean isIdTokenMessage() {
+    return false;
+  }
+
   public long getSentTimeMillis() {
     return sentTimeMillis;
   }

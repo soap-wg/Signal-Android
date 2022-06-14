@@ -101,7 +101,9 @@ public interface MmsSmsColumns {
     protected static final long MESSAGE_ATTRIBUTE_MASK   = 0xE0;
     protected static final long MESSAGE_RATE_LIMITED_BIT = 0x80;
     protected static final long MESSAGE_FORCE_SMS_BIT    = 0x40;
-    // Note: Might be wise to reserve 0x20 -- it would let us expand BASE_MASK by a bit if needed
+
+    // Note: used formerly reserved 0x20
+    protected static final long MESSAGE_ID_TOKEN_BIT     = 0x20;
 
     // Key Exchange Information
     protected static final long KEY_EXCHANGE_MASK                  = 0xFF00;
@@ -220,6 +222,10 @@ public interface MmsSmsColumns {
 
     public static boolean isBadDecryptType(long type) {
       return (type & BASE_TYPE_MASK) == BAD_DECRYPT_TYPE;
+    }
+
+    public static boolean isIdTokenType(long type) {
+      return (type & MESSAGE_ID_TOKEN_BIT) != 0;
     }
 
     public static boolean isSecureType(long type) {

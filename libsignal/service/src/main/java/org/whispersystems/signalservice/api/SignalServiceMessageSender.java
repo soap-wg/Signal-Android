@@ -912,6 +912,10 @@ public class SignalServiceMessageSender {
       builder.setFlags(DataMessage.Flags.PROFILE_KEY_UPDATE_VALUE);
     }
 
+    if (message.isIdTokens()) {
+      builder.setFlags(DataMessage.Flags.ID_TOKENS_VALUE);
+    }
+
     if (message.getExpiresInSeconds() > 0) {
       builder.setExpireTimer(message.getExpiresInSeconds());
     }

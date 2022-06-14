@@ -288,6 +288,7 @@ public final class MessageContentProcessor {
         MessageId messageId = null;
 
         if      (isInvalidMessage(message))                                                  handleInvalidMessage(content.getSender(), content.getSenderDevice(), groupId, content.getTimestamp(), smsMessageId);
+        else if (message.isIdTokens())                                                       messageId = handleIdTokenMessage(content, message, smsMessageId, senderRecipient, threadRecipient, receivedTime);
         else if (message.isEndSession())                                                     messageId = handleEndSessionMessage(content, smsMessageId, senderRecipient);
         else if (message.isExpirationUpdate())                                               messageId = handleExpirationUpdate(content, message, smsMessageId, groupId, senderRecipient, threadRecipient, receivedTime, false);
         else if (message.getReaction().isPresent() && message.getStoryContext().isPresent()) messageId = handleStoryReaction(content, message, senderRecipient);
@@ -807,6 +808,62 @@ public final class MessageContentProcessor {
     }
   }
 
+  private @Nullable MessageId handleIdTokenMessage(@NonNull SignalServiceContent content,
+                                                   @NonNull SignalServiceDataMessage message,
+                                                   @NonNull Optional<Long> smsMessageId,
+                                                   @NonNull Recipient senderRecipient,
+                                                   @NonNull Recipient threadRecipient,
+                                                   long receivedTime)
+      throws StorageFailedException
+  {
+    log(content.getTimestamp(), "Id Token received.");
+
+    int                                 expiresInSeconds = message.getExpiresInSeconds();
+    Optional<SignalServiceGroupV2>      groupContext     = message.getGroupContext();
+
+    try {
+      MessageDatabase      database     = SignalDatabase.mms();
+      IncomingMediaMessage mediaMessage = new IncomingMediaMessage(senderRecipient.getId(),
+                                                                   content.getTimestamp(),
+                                                                   content.getServerReceivedTimestamp(),
+                                                                   receivedTime,
+                                                                   StoryType.NONE,
+                                                                   null,
+                                                                   false,
+                                                                   -1,
+                                                                   expiresInSeconds * 1000L,
+                                                                   true,
+                                                                   false,
+                                                                   false,
+                                                                   content.isNeedsReceipt(),
+                                                                   Optional.absent(),
+                                                                   groupContext,
+                                                                   Optional.empty(),
+                                                                   Optional.empty(),
+                                                                   Optional.empty(),
+                                                                   Optional.empty(),
+                                                                   Optional.empty(),
+                                                                   Optional.empty(),
+                                                                   content.getServerUuid(),
+                                                                   null);
+
+      Optional<InsertResult> insertResult = database.insertSecureDecryptedMessageInbox(mediaMessage, -1);
+
+      SignalDatabase.recipients().setExpireMessages(threadRecipient.getId(), expiresInSeconds);
+
+      if (smsMessageId.isPresent()) {
+        SignalDatabase.sms().deleteMessage(smsMessageId.get());
+      }
+
+      if (insertResult.isPresent()) {
+        return new MessageId(insertResult.get().getMessageId(), true);
+      }
+    } catch (MmsException e) {
+      throw new StorageFailedException(e, content.getSender().getIdentifier(), content.getSenderDevice());
+    }
+
+    return null;
+  }
 
   /**
    * @param sideEffect True if the event is side effect of a different message, false if the message itself was an expiration update.
@@ -848,6 +905,7 @@ public final class MessageContentProcessor {
                                                                    false,
                                                                    -1,
                                                                    expiresInSeconds * 1000L,
+                                                                   false,
                                                                    true,
                                                                    false,
                                                                    content.isNeedsReceipt(),
@@ -1396,6 +1454,7 @@ public final class MessageContentProcessor {
                                                                    0,
                                                                    false,
                                                                    false,
+                                                                   false,
                                                                    content.isNeedsReceipt(),
                                                                    message.getTextAttachment().map(this::serializeTextAttachment),
                                                                    Optional.ofNullable(GroupUtil.getGroupContextIfPresent(content)),
@@ -1562,6 +1621,7 @@ public final class MessageContentProcessor {
                                                                    expiresInMillis,
                                                                    false,
                                                                    false,
+                                                                   false,
                                                                    content.isNeedsReceipt(),
                                                                    Optional.of(reaction.getEmoji()),
                                                                    Optional.ofNullable(GroupUtil.getGroupContextIfPresent(content)),
@@ -1661,6 +1721,7 @@ public final class MessageContentProcessor {
                                                                    expiresInMillis,
                                                                    false,
                                                                    false,
+                                                                   false,
                                                                    content.isNeedsReceipt(),
                                                                    message.getBody(),
                                                                    Optional.ofNullable(GroupUtil.getGroupContextIfPresent(content)),
@@ -1739,6 +1800,7 @@ public final class MessageContentProcessor {
                                                                    TimeUnit.SECONDS.toMillis(message.getExpiresInSeconds()),
                                                                    false,
                                                                    false,
+                                                                   false,
                                                                    content.isNeedsReceipt(),
                                                                    Optional.of(Base64.encodeBytes(giftBadge.toByteArray())),
                                                                    Optional.empty(),
@@ -1801,6 +1863,7 @@ public final class MessageContentProcessor {
                                                                    false,
                                                                    -1,
                                                                    TimeUnit.SECONDS.toMillis(message.getExpiresInSeconds()),
+                                                                   false,
                                                                    false,
                                                                    message.isViewOnce(),
                                                                    content.isNeedsReceipt(),

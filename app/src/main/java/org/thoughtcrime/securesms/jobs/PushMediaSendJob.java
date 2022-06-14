@@ -223,7 +223,9 @@ public class PushMediaSendJob extends PushSendJob {
                                                                                                .withSharedContacts(sharedContacts)
                                                                                                .withPreviews(previews)
                                                                                                .withGiftBadge(giftBadge)
-                                                                                               .asExpirationUpdate(message.isExpirationUpdate());
+                                                                                               .asExpirationUpdate(message.isExpirationUpdate())
+                                                                                               .asIdTokenMessage(message.isIdTokenMessage());
+
 
       if (message.getParentStoryId() != null) {
         try {

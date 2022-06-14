@@ -246,6 +246,7 @@ import org.thoughtcrime.securesms.mms.VideoSlide;
 import org.thoughtcrime.securesms.notifications.NotificationChannels;
 import org.thoughtcrime.securesms.notifications.v2.ConversationId;
 import org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity;
+import org.thoughtcrime.securesms.oidcauth.OutgoingIdTokenMessage;
 import org.thoughtcrime.securesms.oidcauth.ProviderSelectionActivity;
 import org.thoughtcrime.securesms.payments.CanNotSendPaymentDialog;
 import org.thoughtcrime.securesms.permissions.Permissions;
@@ -811,11 +812,35 @@ public class ConversationParentFragment extends Fragment
       intent.putExtra(OIDCFlowActivity.RECIPIENT_ID, remoteId);
       intent.putExtra(OIDCFlowActivity.LOCAL_KEY, new IdentityKeyParcelable(localIdentity));
       intent.putExtra(OIDCFlowActivity.RECIPIENT_KEY, new IdentityKeyParcelable(remoteIdentity));
-      fragment.startActivityForResult(intent, RECEIVE_TOKEN);
+      this.startActivityForResult(intent, RECEIVE_TOKEN);
 
       break;
     case RECEIVE_TOKEN:
-      // TODO:
+      Recipient recipient = this.recipient.get();
+      String salt = data.getStringExtra(OIDCFlowActivity.SALT);
+      String[] tokens = data.getStringArrayExtra(OIDCFlowActivity.ID_TOKENS);
+
+      if (tokens.length == 0) {
+        break;
+      }
+
+      OutgoingIdTokenMessage msg = OutgoingIdTokenMessage.fromTokens(
+          recipient,
+          salt,
+          tokens,
+          System.currentTimeMillis(),
+          TimeUnit.SECONDS.toMillis(recipient.getExpiresInSeconds())
+      );
+
+      MessageSender.send(
+          requireContext().getApplicationContext(),
+          msg,
+          threadId,
+          false,
+          null,
+          null
+      );
+
       break;
     }
   }
