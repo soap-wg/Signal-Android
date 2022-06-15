@@ -12,7 +12,7 @@ import java.util.Optional;
 public enum Provider {
   MICROSOFT(
       R.string.Microsoft,
-      "https://login.microsoftonline.com/consumers/v2.0/.well-known/openid-configuration",
+      "https://login.microsoftonline.com/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0/.well-known/openid-configuration",
       "ec8813c8-670b-4b23-a85b-d44c8b7e8521",
       "msauth://org.thoughtcrime.securesms/mzt6kLeOL6MrO29SHvHxFO725UY%3D"
   );
