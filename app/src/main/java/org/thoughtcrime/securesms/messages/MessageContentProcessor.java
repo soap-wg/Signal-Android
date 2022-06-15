@@ -836,7 +836,7 @@ public final class MessageContentProcessor {
                                                                    false,
                                                                    false,
                                                                    content.isNeedsReceipt(),
-                                                                   Optional.absent(),
+                                                                   message.getBody(),
                                                                    groupContext,
                                                                    Optional.empty(),
                                                                    Optional.empty(),
