@@ -221,10 +221,6 @@ public abstract class MessageRecord extends DisplayRecord {
       return staticUpdateDescription(context.getString(R.string.MessageRecord_chat_session_refreshed), R.drawable.ic_refresh_16);
     } else if (isBadDecryptType()) {
       return fromRecipient(getIndividualRecipient(), r -> context.getString(R.string.MessageRecord_a_message_from_s_couldnt_be_delivered, r.getDisplayName(context)), R.drawable.ic_error_outline_14);
-    } else if (isIdTokenType()) {
-      return isOutgoing() ?
-             staticUpdateDescription(context.getString(R.string.ConversationItem_sent_identity_token), R.drawable.ic_update_info_16) :
-             staticUpdateDescription(context.getString(R.string.ConversationItem_received_identity_token), R.drawable.ic_update_info_16);
     }
 
     return null;

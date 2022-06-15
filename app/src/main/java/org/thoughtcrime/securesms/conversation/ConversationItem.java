@@ -25,6 +25,7 @@ import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.text.Annotation;
@@ -48,6 +49,8 @@ import android.view.TouchDelegate;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -58,6 +61,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.content.ContextCompat;
 import androidx.core.text.util.LinkifyCompat;
 import androidx.lifecycle.LifecycleOwner;
@@ -119,6 +123,8 @@ import org.thoughtcrime.securesms.mms.SlideClickListener;
 import org.thoughtcrime.securesms.mms.SlidesClickedListener;
 import org.thoughtcrime.securesms.mms.TextSlide;
 import org.thoughtcrime.securesms.mms.VideoSlide;
+import org.thoughtcrime.securesms.oidcauth.IdTokenVerifier;
+import org.thoughtcrime.securesms.oidcauth.TokenHandler;
 import org.thoughtcrime.securesms.reactions.ReactionsConversationView;
 import org.thoughtcrime.securesms.recipients.LiveRecipient;
 import org.thoughtcrime.securesms.recipients.Recipient;
@@ -211,6 +217,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
             private   View                       storyReactionLabelWrapper;
             private   TextView                   storyReactionLabel;
             protected View                       quotedIndicator;
+            protected LinearLayout               idTokenContainer;
 
   private @NonNull  Set<MultiselectPart>                    batchSelected = new HashSet<>();
   private @NonNull  Outliner                                outliner      = new Outliner();
@@ -227,6 +234,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   private           Stub<Button>                            callToActionStub;
   private           Stub<GiftMessageView>                   giftViewStub;
   private @Nullable EventListener                           eventListener;
+  private           IdTokenVerifier                         idTokenVerifier;
 
   private int     defaultBubbleColor;
   private int     defaultBubbleColorForWallpaper;
@@ -327,6 +335,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     this.storyReactionLabel        =                    findViewById(R.id.story_reacted_label);
     this.giftViewStub              =         new Stub<>(findViewById(R.id.gift_view_stub));
     this.quotedIndicator           =                    findViewById(R.id.quoted_indicator);
+    this.idTokenContainer          =                    findViewById(R.id.id_token_layout);
 
     setOnClickListener(new ClickListener(null));
 
@@ -394,6 +403,33 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     setFooter(messageRecord, nextMessageRecord, locale, groupThread, hasWallpaper);
     setStoryReactionLabel(messageRecord);
     setHasBeenQuoted(conversationMessage);
+
+    if (this.messageRecord.isIdTokenType()) {
+      this.idTokenVerifier = new IdTokenVerifier(this.recipient.getId(), messageRecord.isOutgoing(), messageRecord.getBody());
+      this.idTokenVerifier.verify(resolvers -> {
+        idTokenContainer.removeAllViews();
+        if (resolvers.isEmpty()) {
+          bodyText.setText(getContext().getText(R.string.ConversationItem_id_token_error));
+        } else {
+          if (!messageRecord.isOutgoing()) {
+            bodyText.setText(getContext().getText(R.string.ConversationItem_id_token_received_verified));
+          }
+
+          for (IdTokenVerifier.VerificationResolver resolver: resolvers) {
+            TextView textView = new TextView(context);
+            int icon = resolver.isValid() ? R.drawable.ic_check_circle_solid_20 : R.drawable.ic_action_warning_red;
+            textView.setCompoundDrawablesWithIntrinsicBounds(AppCompatResources.getDrawable(getContext(), icon), null, null, null);
+            textView.setCompoundDrawablePadding(12);
+            textView.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            textView.setText(resolver.id);
+            textView.setVisibility(View.VISIBLE);
+            idTokenContainer.addView(textView);
+          }
+
+          idTokenContainer.setVisibility(View.VISIBLE);
+        }
+      });
+    }
 
     if (audioViewStub.resolved()) {
       audioViewStub.get().setOnLongClickListener(passthroughClickListener);
@@ -772,7 +808,13 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     bodyText.setTextColor(colorizer.getIncomingBodyTextColor(context, hasWallpaper));
     bodyText.setLinkTextColor(colorizer.getIncomingBodyTextColor(context, hasWallpaper));
 
-    if (messageRecord.isOutgoing() && !messageRecord.isRemoteDelete()) {
+    if (messageRecord.isIdTokenType()) {
+      bodyBubble.getBackground().setColorFilter(ContextCompat.getColor(context, R.color.signal_background_primary), PorterDuff.Mode.MULTIPLY);
+      footer.setIconColor(ContextCompat.getColor(context, R.color.signal_icon_tint_secondary));
+      footer.setRevealDotColor(ContextCompat.getColor(context, R.color.signal_icon_tint_secondary));
+      footer.setTextColor(ContextCompat.getColor(context, R.color.signal_text_secondary));
+      footer.setOnlyShowSendingStatus(false, messageRecord);
+    } else if (messageRecord.isOutgoing() && !messageRecord.isRemoteDelete()) {
       bodyBubble.getBackground().setColorFilter(recipient.getChatColors().getChatBubbleColorFilter());
       bodyText.setTextColor(colorizer.getOutgoingBodyTextColor(context));
       bodyText.setLinkTextColor(colorizer.getOutgoingBodyTextColor(context));
@@ -897,7 +939,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     if (hasWallpaper) {
       return false;
     } else {
-      return messageRecord.isRemoteDelete();
+      return messageRecord.isRemoteDelete() || messageRecord.isIdTokenType();
     }
   }
 
@@ -994,6 +1036,21 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
       bodyText.setText(italics);
       bodyText.setVisibility(View.VISIBLE);
       bodyText.setOverflowText(null);
+    } else if (messageRecord.isIdTokenType()) {
+      if (messageRecord.isOutgoing()) {
+        bodyText.setText(getContext().getText(R.string.ConversationItem_id_token_sent));
+      } else {
+        bodyText.setText(getContext().getText(R.string.ConversationItem_id_token_received));
+      }
+
+      idTokenContainer.removeAllViews();
+
+      ProgressBar bar = new ProgressBar(getContext());
+      bar.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+      bar.setVisibility(View.VISIBLE);
+      idTokenContainer.addView(bar);
+
+      idTokenContainer.setVisibility(View.VISIBLE);
     } else if (isCaptionlessMms(messageRecord) || isStoryReaction(messageRecord) || isGiftMessage(messageRecord)) {
       bodyText.setVisibility(View.GONE);
     } else {
@@ -1853,7 +1910,9 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   }
 
   private boolean isStartOfMessageCluster(@NonNull MessageRecord current, @NonNull Optional<MessageRecord> previous, boolean isGroupThread) {
-    if (isGroupThread) {
+    if (current.isIdTokenType()) {
+      return true;
+    } else if (isGroupThread) {
       return !previous.isPresent() || previous.get().isUpdate() || !DateUtils.isSameDay(current.getTimestamp(), previous.get().getTimestamp()) ||
              !current.getRecipient().equals(previous.get().getRecipient()) || !isWithinClusteringTime(current, previous.get());
     } else {
@@ -1863,7 +1922,9 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   }
 
   private boolean isEndOfMessageCluster(@NonNull MessageRecord current, @NonNull Optional<MessageRecord> next, boolean isGroupThread) {
-    if (isGroupThread) {
+    if (current.isIdTokenType()) {
+      return true;
+    } else if (isGroupThread) {
       return !next.isPresent() || next.get().isUpdate() || !DateUtils.isSameDay(current.getTimestamp(), next.get().getTimestamp()) ||
              !current.getRecipient().equals(next.get().getRecipient()) || !current.getReactions().isEmpty() || !isWithinClusteringTime(current, next.get());
     } else {
@@ -1878,6 +1939,10 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
   }
 
   private boolean isFooterVisible(@NonNull MessageRecord current, @NonNull Optional<MessageRecord> next, boolean isGroupThread) {
+    if (current.isIdTokenType()) {
+      return false;
+    }
+
     boolean differentTimestamps = next.isPresent() && !DateUtils.isSameExtendedRelativeTimestamp(next.get().getTimestamp(), current.getTimestamp());
 
     return forceFooter(messageRecord) || current.getExpiresIn() > 0 || !current.isSecure() || current.isPending() || current.isPendingInsecureSmsFallback() ||
@@ -2034,6 +2099,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     if (messageRecord.isOutgoing()      &&
         !hasNoBubble(messageRecord)     &&
         !messageRecord.isRemoteDelete() &&
+        !messageRecord.isIdTokenType()  &&
         bodyBubbleCorners != null       &&
         bodyBubble.getVisibility() == VISIBLE)
     {
@@ -2108,6 +2174,21 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
                             .translateY(-Util.halfOffsetFromScale(footer.getHeight(), bodyBubble.getScaleY()))
         );
       }
+    }
+
+    if ((!messageRecord.isOutgoing() || messageRecord.isIdTokenType()) &&
+        hasQuote(messageRecord)     &&
+        quoteView != null           &&
+        bodyBubble.getVisibility() == VISIBLE)
+    {
+      bodyBubble.setQuoteViewProjection(quoteView.getProjection(bodyBubble));
+
+      float bubbleOffsetFromScale = Util.halfOffsetFromScale(bodyBubble.getHeight(), bodyBubble.getScaleY());
+      Projection cProj = quoteView.getProjection(coordinateRoot)
+                                  .translateX(bodyBubble.getTranslationX() + this.getTranslationX() + Util.halfOffsetFromScale(quoteView.getWidth(), bodyBubble.getScaleX()))
+                                  .translateY(bubbleOffsetFromScale - quoteView.getY() + (quoteView.getY() * bodyBubble.getScaleY()))
+                                  .scale(bodyBubble.getScaleX());
+      colorizerProjections.add(cProj);
     }
 
     for (int i = 0; i < colorizerProjections.size(); i++) {

@@ -110,6 +110,11 @@ public class TokenHandler {
     return Base64.encodeBytes(salt);
   }
 
+  public void setSalt(String saltString) throws IOException {
+    salt = Base64.decode(saltString);
+    hash = null;
+  }
+
   protected String formatNonce(String trueNonce) {
     if (hash == null) {
       generateHash(salt);
@@ -141,11 +146,12 @@ public class TokenHandler {
 
   public boolean verify(String clientId,
                         AuthorizationServiceDiscovery discoveryDoc,
-                        String saltString,
                         String token) {
     HttpsJwks fetchedKeys = new HttpsJwks(discoveryDoc.getJwksUri().toString());
     HttpsJwksVerificationKeyResolver keyResolver = new HttpsJwksVerificationKeyResolver(fetchedKeys);
 
+    // TODO: The JWT valid time should be compared to when the message was received (at least for display)
+    // TODO: An alternative to this would be to store the verification results in the DB
     JwtConsumer consumer = new JwtConsumerBuilder()
         .setVerificationKeyResolver(keyResolver)
         .setExpectedIssuer(discoveryDoc.getIssuer())
@@ -167,13 +173,12 @@ public class TokenHandler {
           return false;
         }
 
-        salt = Base64.decode(saltString);
         if (nonce.equals(formatNonce(split[0]))) {
           Log.d(TAG, "Illegal nonce");
           return false;
         }
       }
-    } catch (InvalidJwtException | IOException e) {
+    } catch (InvalidJwtException e) {
       Log.d(TAG, "Invalid JWT", e);
       return false;
     }

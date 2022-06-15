@@ -4617,8 +4617,10 @@
     <string name="provider_selection__continue">Continue</string>
     <string name="Google">Google</string>
     <string name="Microsoft">Microsoft</string>
-    <string name="ConversationItem_received_identity_token">Received message with identity tokens. Tap to process...</string>
-    <string name="ConversationItem_sent_identity_token">You shared your identity.</string>
+    <string name="ConversationItem_id_token_received">Received message with identity tokens. Verifying…</string>
+    <string name="ConversationItem_id_token_received_verified">Your chat partner shared their identity. They are also:</string>
+    <string name="ConversationItem_id_token_error">There was an error during ID token verification.</string>
+    <string name="ConversationItem_id_token_sent">You shared your identity.</string>
 
     <!-- Donation receipts activity title -->
     <string name="DonationReceiptListFragment__all_activity">All activity</string>

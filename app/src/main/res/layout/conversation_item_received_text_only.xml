@@ -121,6 +121,15 @@
             app:scaleEmojis="true"
             tools:text="Mango pickle lorem ipsum" />
 
+        <LinearLayout
+            android:id="@+id/id_token_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="@dimen/message_bubble_horizontal_padding"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="gone"></LinearLayout>
+
         <org.thoughtcrime.securesms.components.ConversationItemFooter
             android:id="@+id/conversation_item_footer"
             android:layout_width="wrap_content"

@@ -141,14 +141,14 @@ public class OIDCFlowActivity extends AppCompatActivity {
   protected void ceremony(Provider provider) {
     AuthorizationServiceConfiguration.fetchFromUrl(
         Uri.parse(provider.discoveryUrl),
-        ((serviceConfiguration, ex) -> {
+        (serviceConfiguration, ex) -> {
           if (serviceConfiguration != null) {
             authState = new AuthState(serviceConfiguration);
             dispatch(provider, serviceConfiguration);
           } else {
             logException(ex);
           }
-        })
+        }
     );
   }
 

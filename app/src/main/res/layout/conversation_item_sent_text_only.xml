@@ -77,7 +77,18 @@
             app:footer_icon_color="@color/conversation_item_sent_text_secondary_color"
             app:footer_mode="outgoing"
             app:footer_reveal_dot_color="@color/conversation_item_sent_text_secondary_color"
-            app:footer_text_color="@color/conversation_item_sent_text_secondary_color" />
+            app:footer_text_color="@color/conversation_item_sent_text_secondary_color" >
+
+        </org.thoughtcrime.securesms.components.ConversationItemFooter>
+
+        <LinearLayout
+            android:id="@+id/id_token_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="@dimen/message_bubble_horizontal_padding"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="gone" />
 
         <org.thoughtcrime.securesms.components.ConversationItemFooter
             android:id="@+id/conversation_item_sticker_footer"

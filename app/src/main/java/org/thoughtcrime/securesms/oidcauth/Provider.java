@@ -21,6 +21,12 @@ public enum Provider {
     return Arrays.stream(Provider.values()).filter(provider -> provider.nameResource == nameResource).findFirst();
   }
 
+  public static Optional<Provider> getByIss(String iss) {
+    // discovery URL needs to match issuer; see: https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig
+    String discoveryUrl = iss + "/.well-known/openid-configuration";
+    return Arrays.stream(Provider.values()).filter(provider -> provider.discoveryUrl.equals(discoveryUrl)).findFirst();
+  }
+
   public final int    nameResource;
   public final String discoveryUrl;
   public final String clientId;
