@@ -4,6 +4,7 @@ import net.openid.appauth.AuthorizationServiceDiscovery;
 
 import org.jose4j.jwk.HttpsJwks;
 import org.jose4j.jwt.JwtClaims;
+import org.jose4j.jwt.NumericDate;
 import org.jose4j.jwt.consumer.InvalidJwtException;
 import org.jose4j.jwt.consumer.JwtConsumer;
 import org.jose4j.jwt.consumer.JwtConsumerBuilder;
@@ -146,7 +147,8 @@ public class TokenHandler {
 
   public boolean verify(String clientId,
                         AuthorizationServiceDiscovery discoveryDoc,
-                        String token) {
+                        String token,
+                        NumericDate tokenTimestamp) {
     HttpsJwks fetchedKeys = new HttpsJwks(discoveryDoc.getJwksUri().toString());
     HttpsJwksVerificationKeyResolver keyResolver = new HttpsJwksVerificationKeyResolver(fetchedKeys);
 
@@ -154,6 +156,7 @@ public class TokenHandler {
     // TODO: An alternative to this would be to store the verification results in the DB
     JwtConsumer consumer = new JwtConsumerBuilder()
         .setVerificationKeyResolver(keyResolver)
+        .setEvaluationTime(tokenTimestamp)
         .setExpectedIssuer(discoveryDoc.getIssuer())
         .setExpectedAudience(clientId)
         .build();

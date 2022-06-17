@@ -405,7 +405,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
     setHasBeenQuoted(conversationMessage);
 
     if (this.messageRecord.isIdTokenType()) {
-      this.idTokenVerifier = new IdTokenVerifier(this.recipient.getId(), messageRecord.isOutgoing(), messageRecord.getBody());
+      this.idTokenVerifier = new IdTokenVerifier(this.recipient.getId(), messageRecord.isOutgoing(), messageRecord.getBody(), messageRecord.getTimestamp());
       this.idTokenVerifier.verify(resolvers -> {
         idTokenContainer.removeAllViews();
         if (resolvers.isEmpty()) {

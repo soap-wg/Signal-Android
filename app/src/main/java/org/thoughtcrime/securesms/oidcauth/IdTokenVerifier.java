@@ -7,6 +7,7 @@ import net.openid.appauth.AuthorizationServiceDiscovery;
 
 import org.jose4j.jwt.JwtClaims;
 import org.jose4j.jwt.MalformedClaimException;
+import org.jose4j.jwt.NumericDate;
 import org.jose4j.jwt.consumer.InvalidJwtException;
 import org.jose4j.jwt.consumer.JwtConsumer;
 import org.jose4j.jwt.consumer.JwtConsumerBuilder;
@@ -45,12 +46,14 @@ public class IdTokenVerifier {
   private final RecipientId recipientId;
   private String saltString;
   private final List<String> tokens = new LinkedList<>();
+  private final NumericDate tokenTimestamp;
 
   private TokenHandler tokenHandler;
 
-  public IdTokenVerifier(RecipientId id, boolean isSender, String body) {
+  public IdTokenVerifier(RecipientId id, boolean isSender, String body, long timestamp) {
     recipientIsSender = isSender;
     recipientId = id;
+    tokenTimestamp = NumericDate.fromMilliseconds(timestamp);
 
     try {
       String[] split = body.split("\\?");
@@ -163,7 +166,7 @@ public class IdTokenVerifier {
     }
 
     protected void verify() {
-      verified = tokenHandler.verify(provider.clientId, discoveryDoc, token);
+      verified = tokenHandler.verify(provider.clientId, discoveryDoc, token, tokenTimestamp);
     }
 
     public boolean isVerified() {
