@@ -417,7 +417,7 @@ public final class ConversationItem extends RelativeLayout implements BindableCo
 
           for (IdTokenVerifier.VerificationResolver resolver: resolvers) {
             TextView textView = new TextView(context);
-            int icon = resolver.isValid() ? R.drawable.ic_check_circle_solid_20 : R.drawable.ic_action_warning_red;
+            int icon = resolver.isValid() ? resolver.provider.logoResource : R.drawable.ic_action_warning_red;
             textView.setCompoundDrawablesWithIntrinsicBounds(AppCompatResources.getDrawable(getContext(), icon), null, null, null);
             textView.setCompoundDrawablePadding(12);
             textView.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));

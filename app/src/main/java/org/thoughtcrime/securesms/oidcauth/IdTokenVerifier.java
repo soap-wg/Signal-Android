@@ -122,7 +122,7 @@ public class IdTokenVerifier {
   public class VerificationResolver {
     protected final String token;
     public final String id;
-    protected final Provider provider;
+    public final Provider provider;
     protected AuthorizationServiceDiscovery discoveryDoc;
     protected Boolean verified = null;
 

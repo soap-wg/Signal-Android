@@ -4621,6 +4621,7 @@
     <string name="ConversationItem_id_token_received_verified">Your chat partner shared their identity. They are also:</string>
     <string name="ConversationItem_id_token_error">There was an error during ID token verification.</string>
     <string name="ConversationItem_id_token_sent">You shared your identity.</string>
+    <string name="GitLab">GitLab</string>
 
     <!-- Donation receipts activity title -->
     <string name="DonationReceiptListFragment__all_activity">All activity</string>
