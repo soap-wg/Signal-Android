@@ -14,28 +14,16 @@ import net.openid.appauth.AuthorizationRequest;
 import net.openid.appauth.AuthorizationResponse;
 import net.openid.appauth.AuthorizationService;
 import net.openid.appauth.AuthorizationServiceConfiguration;
-import net.openid.appauth.IdToken;
 import net.openid.appauth.ResponseTypeValues;
-import net.openid.appauth.TokenResponse;
 
-import org.greenrobot.eventbus.EventBus;
-import org.jose4j.jws.JsonWebSignature;
 import org.json.JSONException;
-import org.json.JSONObject;
 import org.signal.core.util.concurrent.SignalExecutors;
 import org.signal.core.util.concurrent.SimpleTask;
 import org.signal.core.util.logging.Log;
-import org.signal.libsignal.protocol.util.ByteUtil;
 import org.thoughtcrime.securesms.R;
-import org.thoughtcrime.securesms.backup.FullBackupBase;
-import org.thoughtcrime.securesms.crypto.IdentityKeyParcelable;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.RecipientId;
-import org.thoughtcrime.securesms.util.Base64;
-import org.thoughtcrime.securesms.util.Util;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
