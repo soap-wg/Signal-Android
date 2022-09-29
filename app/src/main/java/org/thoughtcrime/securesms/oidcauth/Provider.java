@@ -20,7 +20,7 @@ public enum Provider {
       R.drawable.gitlab_logo,
       "https://gitlab.com/.well-known/openid-configuration",
       "5909f7a9493451609c0e57730e5358a2d909c1efbd6ab74f92c8eab10f1733ff",
-      "https://messaging-auth.felixlinker.de/oauth2redirect"
+      "auth://org.thoughtcrime.securesms/token-gitlab"
   );
 
   public static Optional<Provider> getByName(int nameResource) {
