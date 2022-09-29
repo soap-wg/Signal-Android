@@ -142,6 +142,9 @@
             <data android:scheme="msauth"
                 android:host="org.thoughtcrime.securesms"
                 android:path="/mzt6kLeOL6MrO29SHvHxFO725UY="/>
+            <data android:scheme="https"
+                android:host="messaging-auth.felixlinker.de"
+                android:path="/oauth2redirect"/>
         </intent-filter>
     </activity>
 
