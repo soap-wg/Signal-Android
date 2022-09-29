@@ -171,12 +171,15 @@ public class OIDCFlowActivity extends AppCompatActivity {
         authorizationService.performTokenRequest(
             response.createTokenExchangeRequest(),
             (tokenResponse, tokenEx) -> {
+              String storedNonce = tokenHandler.getCompoundNonce();
+              tokenHandler.clearNonce();
+
               authState.update(tokenResponse, tokenEx);
 
               if (tokenResponse != null && authState.getParsedIdToken() != null) {
                 if (authState.getParsedIdToken().nonce == null) {
                   Log.e(TAG, "No nonce supplied");
-                } else if (!authState.getParsedIdToken().nonce.equals(tokenHandler.getCompoundNonce())) {
+                } else if (!authState.getParsedIdToken().nonce.equals(storedNonce)) {
                   Log.e(TAG, "Supplied nonce differs");
                 } else {
                   idTokens.add(tokenResponse.idToken);

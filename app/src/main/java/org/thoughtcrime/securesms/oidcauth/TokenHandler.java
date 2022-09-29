@@ -99,6 +99,10 @@ public class TokenHandler {
     }
   }
 
+  public void clearNonce() {
+    compoundNonce = null;
+  }
+
   public void newNonce() {
     compoundNonce = formatNonce(Base64.encodeBytes(Util.getSecretBytes(32)));
   }
