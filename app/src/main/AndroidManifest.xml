@@ -139,12 +139,12 @@
             <action android:name="android.intent.action.VIEW"/>
             <category android:name="android.intent.category.DEFAULT"/>
             <category android:name="android.intent.category.BROWSABLE"/>
-            <data android:scheme="msauth"
-                android:host="org.thoughtcrime.securesms"
-                android:path="/mzt6kLeOL6MrO29SHvHxFO725UY="/>
             <data android:scheme="https"
                 android:host="messaging-auth.felixlinker.de"
-                android:path="/oauth2redirect"/>
+                android:path="/android-token-msft"/>
+            <data android:scheme="https"
+                android:host="messaging-auth.felixlinker.de"
+                android:path="/android-token-gitlab"/>
         </intent-filter>
     </activity>
 
