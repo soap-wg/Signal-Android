@@ -32,6 +32,7 @@ import org.whispersystems.signalservice.internal.push.PreKeyEntity
 import org.whispersystems.signalservice.internal.push.PreKeyResponse
 import org.whispersystems.signalservice.internal.push.PreKeyResponseItem
 import org.whispersystems.signalservice.internal.push.PushServiceSocket
+import org.whispersystems.signalservice.internal.push.RegistrationSessionMetadataJson
 import org.whispersystems.signalservice.internal.push.SenderCertificate
 import org.whispersystems.signalservice.internal.push.VerifyAccountResponse
 import org.whispersystems.signalservice.internal.push.WhoAmIResponse
@@ -55,6 +56,16 @@ object MockProvider {
       }
     )
   }
+
+  val sessionMetadataJson = RegistrationSessionMetadataJson(
+    id = "asdfasdfasdfasdf",
+    nextCall = null,
+    nextSms = null,
+    nextVerificationAttempt = null,
+    allowedToRequestCode = true,
+    requestedInformation = emptyList(),
+    verified = true
+  )
 
   fun createVerifyAccountResponse(aci: ServiceId, newPni: ServiceId): VerifyAccountResponse {
     return VerifyAccountResponse().apply {
@@ -81,7 +92,7 @@ object MockProvider {
     }
 
     kbsRepository.stub {
-      on { getToken(any() as String) } doReturn Single.just(ServiceResponse.forResult(tokenData, 200, ""))
+      on { getToken(any() as? String) } doReturn Single.just(ServiceResponse.forResult(tokenData, 200, ""))
     }
 
     val session: KeyBackupService.RestoreSession = object : KeyBackupService.RestoreSession {

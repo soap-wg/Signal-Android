@@ -2,10 +2,12 @@ package org.thoughtcrime.securesms.mediasend;
 
 import android.animation.Animator;
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Rational;
@@ -24,7 +26,6 @@ import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
@@ -33,13 +34,13 @@ import androidx.camera.view.CameraController;
 import androidx.camera.view.LifecycleCameraController;
 import androidx.camera.view.PreviewView;
 import androidx.camera.view.video.ExperimentalVideo;
-import androidx.cardview.widget.CardView;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintSet;
 import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.util.Executors;
+import com.google.android.material.card.MaterialCardView;
 
 import org.signal.core.util.Stopwatch;
 import org.signal.core.util.concurrent.SimpleTask;
@@ -49,6 +50,7 @@ import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.animation.AnimationCompleteListener;
 import org.thoughtcrime.securesms.components.TooltipPopup;
 import org.thoughtcrime.securesms.mediasend.camerax.CameraXFlashToggleView;
+import org.thoughtcrime.securesms.mediasend.camerax.CameraXModePolicy;
 import org.thoughtcrime.securesms.mediasend.camerax.CameraXUtil;
 import org.thoughtcrime.securesms.mediasend.v2.MediaAnimations;
 import org.thoughtcrime.securesms.mediasend.v2.MediaCountIndicatorButton;
@@ -70,7 +72,6 @@ import io.reactivex.rxjava3.disposables.Disposable;
  * preferred whenever possible.
  */
 @ExperimentalVideo
-@RequiresApi(21)
 public class CameraXFragment extends LoggingFragment implements CameraFragment {
 
   private static final String TAG              = Log.tag(CameraXFragment.class);
@@ -80,16 +81,16 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
   private static final Rational              ASPECT_RATIO_16_9  = new Rational(16, 9);
   private static final PreviewView.ScaleType PREVIEW_SCALE_TYPE = PreviewView.ScaleType.FILL_CENTER;
 
-  private PreviewView               previewView;
-  private ViewGroup                 controlsContainer;
-  private Controller                controller;
-  private View                      selfieFlash;
-  private MemoryFileDescriptor      videoFileDescriptor;
-  private LifecycleCameraController cameraController;
-  private Disposable                mostRecentItemDisposable = Disposable.disposed();
-
-  private boolean isThumbAvailable;
-  private boolean isMediaSelected;
+  private PreviewView                      previewView;
+  private ViewGroup                        controlsContainer;
+  private Controller                       controller;
+  private View                             selfieFlash;
+  private MemoryFileDescriptor             videoFileDescriptor;
+  private LifecycleCameraController        cameraController;
+  private Disposable                       mostRecentItemDisposable = Disposable.disposed();
+  private CameraXModePolicy                cameraXModePolicy;
+  private CameraScreenBrightnessController cameraScreenBrightnessController;
+  private boolean                          isMediaSelected;
 
   public static CameraXFragment newInstanceForAvatarCapture() {
     CameraXFragment fragment = new CameraXFragment();
@@ -136,13 +137,23 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
 
     this.previewView       = view.findViewById(R.id.camerax_camera);
     this.controlsContainer = view.findViewById(R.id.camerax_controls_container);
+    this.cameraXModePolicy = CameraXModePolicy.acquire(requireContext(),
+                                                       controller.getMediaConstraints(),
+                                                       requireArguments().getBoolean(IS_VIDEO_ENABLED, true));
+
+    Log.d(TAG, "Starting CameraX with mode policy " + cameraXModePolicy.getClass().getSimpleName());
 
     cameraController = new LifecycleCameraController(requireContext());
     cameraController.bindToLifecycle(getViewLifecycleOwner());
     cameraController.setCameraSelector(CameraXUtil.toCameraSelector(TextSecurePreferences.getDirectCaptureCameraId(requireContext())));
     cameraController.setTapToFocusEnabled(true);
     cameraController.setImageCaptureMode(CameraXUtil.getOptimalCaptureMode());
-    cameraController.setEnabledUseCases(getSupportedUseCases());
+    cameraXModePolicy.initialize(cameraController);
+
+    cameraScreenBrightnessController = new CameraScreenBrightnessController(
+        requireActivity().getWindow(),
+        new CameraStateProvider(cameraController)
+    );
 
     previewView.setScaleType(PREVIEW_SCALE_TYPE);
     previewView.setController(cameraController);
@@ -236,21 +247,23 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
   }
 
   private void presentRecentItemThumbnail(@Nullable Media media) {
-    ImageView thumbnail = controlsContainer.findViewById(R.id.camera_gallery_button);
+    View      thumbBackground = controlsContainer.findViewById(R.id.camera_gallery_button_background);
+    ImageView thumbnail       = controlsContainer.findViewById(R.id.camera_gallery_button);
 
     if (media != null) {
-      thumbnail.setVisibility(View.VISIBLE);
+      thumbBackground.setBackgroundResource(R.drawable.circle_tintable);
+      thumbnail.clearColorFilter();
+      thumbnail.setScaleType(ImageView.ScaleType.FIT_CENTER);
       Glide.with(this)
            .load(new DecryptableUri(media.getUri()))
            .centerCrop()
            .into(thumbnail);
     } else {
-      thumbnail.setVisibility(View.GONE);
-      thumbnail.setImageResource(0);
+      thumbBackground.setBackgroundResource(R.drawable.media_selection_camera_switch_background);
+      thumbnail.setImageResource(R.drawable.symbol_album_tilt_24);
+      thumbnail.setColorFilter(Color.WHITE);
+      thumbnail.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
     }
-
-    isThumbAvailable = media != null;
-    updateGalleryVisibility();
   }
 
   @Override
@@ -271,7 +284,7 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
   private void updateGalleryVisibility() {
     View cameraGalleryContainer = controlsContainer.findViewById(R.id.camera_gallery_button_background);
 
-    if (isMediaSelected || !isThumbAvailable) {
+    if (isMediaSelected) {
       cameraGalleryContainer.setVisibility(View.GONE);
     } else {
       cameraGalleryContainer.setVisibility(View.VISIBLE);
@@ -279,9 +292,9 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
   }
 
   private void initializeViewFinderAndControlsPositioning() {
-    CardView      cameraCard    = requireView().findViewById(R.id.camerax_camera_parent);
-    View          controls      = requireView().findViewById(R.id.camerax_controls_container);
-    CameraDisplay cameraDisplay = CameraDisplay.getDisplay(requireActivity());
+    MaterialCardView cameraCard    = requireView().findViewById(R.id.camerax_camera_parent);
+    View             controls      = requireView().findViewById(R.id.camerax_controls_container);
+    CameraDisplay    cameraDisplay = CameraDisplay.getDisplay(requireActivity());
 
     if (!cameraDisplay.getRoundViewFinderCorners()) {
       cameraCard.setRadius(0f);
@@ -330,12 +343,15 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
 
     flashButton.setAutoFlashEnabled(cameraController.getImageCaptureFlashMode() >= ImageCapture.FLASH_MODE_AUTO);
     flashButton.setFlash(cameraController.getImageCaptureFlashMode());
-    flashButton.setOnFlashModeChangedListener(cameraController::setImageCaptureFlashMode);
+    flashButton.setOnFlashModeChangedListener(mode -> {
+      cameraController.setImageCaptureFlashMode(mode);
+      cameraScreenBrightnessController.onCameraFlashChanged(mode == ImageCapture.FLASH_MODE_ON);
+    });
 
     galleryButton.setOnClickListener(v -> controller.onGalleryClicked());
     countButton.setOnClickListener(v -> controller.onCameraCountButtonClicked());
 
-    if (isVideoRecordingSupported(requireContext())) {
+    if (Build.VERSION.SDK_INT >= 26 && cameraXModePolicy.isVideoSupported()) {
       try {
         closeVideoFileDescriptor();
         videoFileDescriptor = CameraXVideoCaptureHelper.createFileDescriptor(requireContext());
@@ -356,6 +372,7 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
             cameraController,
             previewView,
             videoFileDescriptor,
+            cameraXModePolicy,
             maxDuration,
             new CameraXVideoCaptureHelper.Callback() {
               @Override
@@ -387,23 +404,6 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
                  "Camera: " + CameraXUtil.getLowestSupportedHardwareLevel(requireContext()) + ", " +
                  "MaxDuration: " + VideoUtil.getMaxVideoRecordDurationInSeconds(requireContext(), controller.getMediaConstraints()) + " sec");
     }
-  }
-
-  @CameraController.UseCases
-  private int getSupportedUseCases() {
-    if (isVideoRecordingSupported(requireContext())) {
-      return CameraController.IMAGE_CAPTURE | CameraController.VIDEO_CAPTURE;
-    } else {
-      return CameraController.IMAGE_CAPTURE;
-    }
-  }
-
-  private boolean isVideoRecordingSupported(@NonNull Context context) {
-    return Build.VERSION.SDK_INT >= 26 &&
-           requireArguments().getBoolean(IS_VIDEO_ENABLED, true) &&
-           MediaConstraints.isVideoTranscodeAvailable() &&
-           CameraXUtil.isMixedModeSupported(context) &&
-           VideoUtil.getMaxVideoRecordDurationInSeconds(context, controller.getMediaConstraints()) > 0;
   }
 
   private void displayVideoRecordingTooltipIfNecessary(CameraButtonView captureButton) {
@@ -447,13 +447,17 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
                                                         @NonNull View flipButton,
                                                         @NonNull Animation inAnimation)
   {
-    requireActivity().runOnUiThread(() -> {
-      captureButton.setEnabled(true);
-      flashButton.startAnimation(inAnimation);
-      flashButton.setVisibility(View.VISIBLE);
-      flipButton.startAnimation(inAnimation);
-      flipButton.setVisibility(View.VISIBLE);
-    });
+    Activity activity = getActivity();
+
+    if (activity != null) {
+      activity.runOnUiThread(() -> {
+        captureButton.setEnabled(true);
+        flashButton.startAnimation(inAnimation);
+        flashButton.setVisibility(View.VISIBLE);
+        flipButton.startAnimation(inAnimation);
+        flipButton.setVisibility(View.VISIBLE);
+      });
+    }
   }
 
   private void onCaptureClicked() {
@@ -523,12 +527,14 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
       return;
     }
 
+    getViewLifecycleOwner().getLifecycle().addObserver(cameraScreenBrightnessController);
     if (cameraController.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) && cameraController.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
       flipButton.setVisibility(View.VISIBLE);
       flipButton.setOnClickListener(v -> {
-        cameraController.setCameraSelector(cameraController.getCameraSelector() == CameraSelector.DEFAULT_FRONT_CAMERA
-                                           ? CameraSelector.DEFAULT_BACK_CAMERA
-                                           : CameraSelector.DEFAULT_FRONT_CAMERA);
+        CameraSelector cameraSelector = cameraController.getCameraSelector() == CameraSelector.DEFAULT_FRONT_CAMERA
+                                        ? CameraSelector.DEFAULT_BACK_CAMERA
+                                        : CameraSelector.DEFAULT_FRONT_CAMERA;
+        cameraController.setCameraSelector(cameraSelector);
         TextSecurePreferences.setDirectCaptureCameraId(getContext(), CameraXUtil.toCameraDirectionInt(cameraController.getCameraSelector()));
 
         Animation animation = new RotateAnimation(0, -180, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
@@ -537,6 +543,7 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
         flipButton.startAnimation(animation);
         flashButton.setAutoFlashEnabled(cameraController.getImageCaptureFlashMode() >= ImageCapture.FLASH_MODE_AUTO);
         flashButton.setFlash(cameraController.getImageCaptureFlashMode());
+        cameraScreenBrightnessController.onCameraDirectionChanged(cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA);
       });
 
       GestureDetector gestureDetector = new GestureDetector(requireContext(), new GestureDetector.SimpleOnGestureListener() {
@@ -553,6 +560,25 @@ public class CameraXFragment extends LoggingFragment implements CameraFragment {
 
     } else {
       flipButton.setVisibility(View.GONE);
+    }
+  }
+
+  private static class CameraStateProvider implements CameraScreenBrightnessController.CameraStateProvider {
+
+    private final CameraController cameraController;
+
+    private CameraStateProvider(CameraController cameraController) {
+      this.cameraController = cameraController;
+    }
+
+    @Override
+    public boolean isFrontFacingCameraSelected() {
+      return cameraController.getCameraSelector() == CameraSelector.DEFAULT_FRONT_CAMERA;
+    }
+
+    @Override
+    public boolean isFlashEnabled() {
+      return cameraController.getImageCaptureFlashMode() == ImageCapture.FLASH_MODE_ON;
     }
   }
 }

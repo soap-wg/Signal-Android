@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.core.Single
@@ -20,7 +21,7 @@ import kotlin.math.max
 
 class StoryViewerViewModel(
   private val storyViewerArgs: StoryViewerArgs,
-  private val repository: StoryViewerRepository,
+  private val repository: StoryViewerRepository
 ) : ViewModel() {
 
   private val store = RxStore(
@@ -34,10 +35,15 @@ class StoryViewerViewModel(
     )
   )
 
+  private val loadStore = RxStore(StoryLoadState())
+
   private val disposables = CompositeDisposable()
 
   val stateSnapshot: StoryViewerState get() = store.state
   val state: Flowable<StoryViewerState> = store.stateFlowable
+  val loadState: Flowable<StoryLoadState> = loadStore.stateFlowable.distinctUntilChanged().observeOn(AndroidSchedulers.mainThread())
+
+  private val hidden = mutableSetOf<RecipientId>()
 
   private val scrollStatePublisher: MutableLiveData<Boolean> = MutableLiveData(false)
   val isScrolling: LiveData<Boolean> = scrollStatePublisher
@@ -45,17 +51,27 @@ class StoryViewerViewModel(
   private val childScrollStatePublisher: BehaviorSubject<Boolean> = BehaviorSubject.createDefault(false)
   val allowParentScrolling: Observable<Boolean> = Observable.combineLatest(
     childScrollStatePublisher.distinctUntilChanged(),
-    state.toObservable().map { it.loadState.isReady() }.distinctUntilChanged()
+    loadState.toObservable().map { it.isReady() }.distinctUntilChanged()
   ) { a, b -> !a && b }
 
   var hasConsumedInitialState = false
     private set
 
-  val isChildScrolling: Observable<Boolean> = childScrollStatePublisher.distinctUntilChanged()
+  private val firstTimeNavigationPublisher: BehaviorSubject<Boolean> = BehaviorSubject.createDefault(false)
 
-  init {
+  val isChildScrolling: Observable<Boolean> = childScrollStatePublisher.distinctUntilChanged()
+  val isFirstTimeNavigationShowing: Observable<Boolean> = firstTimeNavigationPublisher.distinctUntilChanged()
+
+  fun addHiddenAndRefresh(hidden: Set<RecipientId>) {
+    this.hidden.addAll(hidden)
     refresh()
   }
+
+  fun setIsDisplayingFirstTimeNavigation(isDisplayingFirstTimeNavigation: Boolean) {
+    firstTimeNavigationPublisher.onNext(isDisplayingFirstTimeNavigation)
+  }
+
+  fun getHidden(): Set<RecipientId> = hidden
 
   fun setCrossfadeTarget(messageRecord: MmsMessageRecord) {
     store.update {
@@ -68,14 +84,14 @@ class StoryViewerViewModel(
   }
 
   fun setContentIsReady() {
-    store.update {
-      it.copy(loadState = it.loadState.copy(isContentReady = true))
+    loadStore.update {
+      it.copy(isContentReady = true)
     }
   }
 
   fun setCrossfaderIsReady(isReady: Boolean) {
-    store.update {
-      it.copy(loadState = it.loadState.copy(isCrossfaderReady = isReady))
+    loadStore.update {
+      it.copy(isCrossfaderReady = isReady)
     }
   }
 
@@ -85,19 +101,18 @@ class StoryViewerViewModel(
 
   private fun getStories(): Single<List<RecipientId>> {
     return if (storyViewerArgs.recipientIds.isNotEmpty()) {
-      Single.just(storyViewerArgs.recipientIds)
+      Single.just(storyViewerArgs.recipientIds - hidden)
     } else {
       repository.getStories(
         hiddenStories = storyViewerArgs.isInHiddenStoryMode,
-        unviewedOnly = storyViewerArgs.isUnviewedOnly,
         isOutgoingOnly = storyViewerArgs.isFromMyStories
       )
     }
   }
 
-  private fun refresh() {
+  fun refresh() {
     disposables.clear()
-    disposables += repository.getFirstStory(storyViewerArgs.recipientId, storyViewerArgs.isUnviewedOnly, storyViewerArgs.storyId).subscribe { record ->
+    disposables += repository.getFirstStory(storyViewerArgs.recipientId, storyViewerArgs.storyId).subscribe { record ->
       store.update {
         it.copy(
           crossfadeTarget = StoryViewerState.CrossfadeTarget.Record(record)
@@ -119,7 +134,7 @@ class StoryViewerViewModel(
         } else {
           it.page
         }
-        updatePages(it.copy(pages = recipientIds), page)
+        updatePages(it.copy(pages = recipientIds), page).copy(noPosts = recipientIds.isEmpty())
       }
     }
     disposables += state
@@ -139,6 +154,8 @@ class StoryViewerViewModel(
 
   override fun onCleared() {
     disposables.clear()
+    store.dispose()
+    loadStore.dispose()
   }
 
   fun setSelectedPage(page: Int) {
@@ -165,10 +182,6 @@ class StoryViewerViewModel(
         it
       }
     }
-  }
-
-  fun onRecipientHidden() {
-    refresh()
   }
 
   private fun updatePages(state: StoryViewerState, page: Int): StoryViewerState {

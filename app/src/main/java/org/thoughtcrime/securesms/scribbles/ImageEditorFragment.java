@@ -1,6 +1,7 @@
 package org.thoughtcrime.securesms.scribbles;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -33,10 +34,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.signal.core.util.FontUtil;
 import org.signal.core.util.concurrent.SignalExecutors;
+import org.signal.core.util.concurrent.SimpleTask;
 import org.signal.core.util.logging.Log;
 import org.signal.imageeditor.core.Bounds;
 import org.signal.imageeditor.core.ColorableRenderer;
-import org.signal.imageeditor.core.HiddenEditText;
 import org.signal.imageeditor.core.ImageEditorView;
 import org.signal.imageeditor.core.Renderer;
 import org.signal.imageeditor.core.SelectableRenderer;
@@ -48,7 +49,6 @@ import org.signal.imageeditor.core.renderers.MultiLineTextRenderer;
 import org.signal.libsignal.protocol.util.Pair;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.animation.ResizeAnimation;
-import org.thoughtcrime.securesms.components.emoji.EmojiUtil;
 import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
 import org.thoughtcrime.securesms.fonts.FontTypefaceProvider;
 import org.thoughtcrime.securesms.keyvalue.SignalStore;
@@ -59,6 +59,10 @@ import org.thoughtcrime.securesms.mms.PushMediaConstraints;
 import org.thoughtcrime.securesms.mms.SentMediaQuality;
 import org.thoughtcrime.securesms.permissions.Permissions;
 import org.thoughtcrime.securesms.providers.BlobProvider;
+import org.thoughtcrime.securesms.scribbles.stickers.AnalogClockStickerRenderer;
+import org.thoughtcrime.securesms.scribbles.stickers.DigitalClockStickerRenderer;
+import org.thoughtcrime.securesms.scribbles.stickers.FeatureSticker;
+import org.thoughtcrime.securesms.scribbles.stickers.TappableRenderer;
 import org.thoughtcrime.securesms.util.MediaUtil;
 import org.thoughtcrime.securesms.util.ParcelUtil;
 import org.thoughtcrime.securesms.util.SaveAttachmentTask;
@@ -66,7 +70,6 @@ import org.thoughtcrime.securesms.util.StorageUtil;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.thoughtcrime.securesms.util.ThrottledDebouncer;
 import org.thoughtcrime.securesms.util.ViewUtil;
-import org.signal.core.util.concurrent.SimpleTask;
 import org.thoughtcrime.securesms.util.views.SimpleProgressDialog;
 
 import java.io.ByteArrayOutputStream;
@@ -290,6 +293,10 @@ public final class ImageEditorFragment extends Fragment implements ImageEditorHu
       imageEditorHud.enterMode(ImageEditorHudV2.Mode.CROP);
     }
 
+    if (mode == Mode.AVATAR_EDIT) {
+      imageEditorHud.enterMode(ImageEditorHudV2.Mode.DRAW);
+    }
+
     imageEditorView.setModel(editorModel);
 
     if (!SignalStore.tooltips().hasSeenBlurHudIconTooltip()) {
@@ -414,10 +421,25 @@ public final class ImageEditorFragment extends Fragment implements ImageEditorHu
   public void onActivityResult(int requestCode, int resultCode, Intent data) {
     super.onActivityResult(requestCode, resultCode, data);
     if (resultCode == RESULT_OK && requestCode == SELECT_STICKER_REQUEST_CODE && data != null) {
-      final Uri uri = data.getData();
-      if (uri != null) {
-        UriGlideRenderer renderer = new UriGlideRenderer(uri, true, imageMaxWidth, imageMaxHeight);
-        EditorElement    element  = new EditorElement(renderer, EditorModel.Z_STICKERS);
+      Renderer renderer = null;
+      if (data.hasExtra(ImageEditorStickerSelectActivity.EXTRA_FEATURE_STICKER)) {
+        FeatureSticker sticker = FeatureSticker.fromType(data.getStringExtra(ImageEditorStickerSelectActivity.EXTRA_FEATURE_STICKER));
+        switch (sticker) {
+          case DIGITAL_CLOCK:
+            renderer = new DigitalClockStickerRenderer(System.currentTimeMillis());
+            break;
+          case ANALOG_CLOCK:
+            renderer = new AnalogClockStickerRenderer(System.currentTimeMillis());
+            break;
+        }
+      } else {
+        final Uri uri = data.getData();
+        if (uri != null) {
+          renderer = new UriGlideRenderer(uri, true, imageMaxWidth, imageMaxHeight);
+        }
+      }
+      if (renderer != null) {
+        EditorElement element = new EditorElement(renderer, EditorModel.Z_STICKERS);
         imageEditorView.getModel().addElementCentered(element, 0.4f);
         setCurrentSelection(element);
         hasMadeAnEditThisSession = true;
@@ -791,8 +813,13 @@ public final class ImageEditorFragment extends Fragment implements ImageEditorHu
 
   @WorkerThread
   public @NonNull Uri renderToSingleUseBlob() {
+    return renderToSingleUseBlob(requireContext(), imageEditorView.getModel());
+  }
+
+  @WorkerThread
+  public static @NonNull Uri renderToSingleUseBlob(@NonNull Context context, @NonNull EditorModel editorModel) {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    Bitmap                image        = imageEditorView.getModel().render(requireContext(), new FontTypefaceProvider());
+    Bitmap                image        = editorModel.render(context, new FontTypefaceProvider());
 
     image.compress(Bitmap.CompressFormat.JPEG, 80, outputStream);
     image.recycle();
@@ -998,6 +1025,9 @@ public final class ImageEditorFragment extends Fragment implements ImageEditorHu
         if (editorElement.getRenderer() instanceof MultiLineTextRenderer) {
           setTextElement(editorElement, (ColorableRenderer) editorElement.getRenderer(), imageEditorView.isTextEditing());
         } else {
+          if (editorElement.getRenderer() instanceof TappableRenderer) {
+            ((TappableRenderer) editorElement.getRenderer()).onTapped();
+          }
           imageEditorHud.setMode(ImageEditorHudV2.Mode.MOVE_STICKER);
         }
       } else {

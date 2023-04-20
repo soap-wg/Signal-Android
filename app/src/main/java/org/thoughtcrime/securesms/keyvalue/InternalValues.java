@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 
 import org.signal.ringrtc.CallManager;
 import org.thoughtcrime.securesms.BuildConfig;
+import org.thoughtcrime.securesms.util.Environment;
 import org.thoughtcrime.securesms.util.FeatureFlags;
 
 import java.util.Arrays;
@@ -26,6 +27,8 @@ public final class InternalValues extends SignalStoreValues {
   public static final String CALLING_DISABLE_TELECOM              = "internal.calling_disable_telecom";
   public static final String SHAKE_TO_REPORT                      = "internal.shake_to_report";
   public static final String DISABLE_STORAGE_SERVICE              = "internal.disable_storage_service";
+  public static final String FORCE_WEBSOCKET_MODE                 = "internal.force_websocket_mode";
+  public static final String LAST_SCROLL_POSITION                 = "internal.last_scroll_position";
 
   InternalValues(KeyValueStore store) {
     super(store);
@@ -125,7 +128,7 @@ public final class InternalValues extends SignalStoreValues {
    * internal users cannot be left on old servers.
    */
   public synchronized @NonNull String groupCallingServer() {
-    String internalServer = FeatureFlags.internalUser() ? getString(CALLING_SERVER, null) : null;
+    String internalServer = FeatureFlags.internalUser() ? getString(CALLING_SERVER, Environment.Calling.defaultSfuUrl()) : null;
     if (internalServer != null && !Arrays.asList(BuildConfig.SIGNAL_SFU_INTERNAL_URLS).contains(internalServer)) {
       internalServer = null;
     }
@@ -148,7 +151,10 @@ public final class InternalValues extends SignalStoreValues {
    */
   public synchronized CallManager.BandwidthMode callingBandwidthMode() {
     if (FeatureFlags.internalUser()) {
-      return CallManager.BandwidthMode.values()[getInteger(CALLING_BANDWIDTH_MODE, CallManager.BandwidthMode.NORMAL.ordinal())];
+      int                         index = getInteger(CALLING_BANDWIDTH_MODE, CallManager.BandwidthMode.NORMAL.ordinal());
+      CallManager.BandwidthMode[] modes = CallManager.BandwidthMode.values();
+
+      return index < modes.length ? modes[index] : CallManager.BandwidthMode.NORMAL;
     } else {
       return CallManager.BandwidthMode.NORMAL;
     }
@@ -159,9 +165,28 @@ public final class InternalValues extends SignalStoreValues {
    */
   public synchronized boolean callingDisableTelecom() {
     if (FeatureFlags.internalUser()) {
-      return getBoolean(CALLING_DISABLE_TELECOM, false);
+      return getBoolean(CALLING_DISABLE_TELECOM, true);
     } else {
       return false;
     }
+  }
+
+  /**
+   * Whether or not the system is forced to be in 'websocket mode', where FCM is ignored and we use a foreground service to keep the app alive.
+   */
+  public boolean isWebsocketModeForced() {
+    if (FeatureFlags.internalUser()) {
+      return getBoolean(FORCE_WEBSOCKET_MODE, false);
+    } else {
+      return false;
+    }
+  }
+
+  public void setLastScrollPosition(int position) {
+    putInteger(LAST_SCROLL_POSITION, position);
+  }
+
+  public int getLastScrollPosition() {
+    return getInteger(LAST_SCROLL_POSITION, 0);
   }
 }

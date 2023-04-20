@@ -65,6 +65,14 @@ public final class CursorUtil {
     }
   }
 
+  public static Optional<Long> getLong(@NonNull Cursor cursor, @NonNull String column) {
+    if (cursor.getColumnIndex(column) < 0) {
+      return Optional.empty();
+    } else {
+      return Optional.of(requireLong(cursor, column));
+    }
+  }
+
   public static Optional<Boolean> getBoolean(@NonNull Cursor cursor, @NonNull String column) {
     if (cursor.getColumnIndex(column) < 0) {
       return Optional.empty();
@@ -95,13 +103,5 @@ public final class CursorUtil {
     }
 
     return row.toString();
-  }
-
-  public static @Nullable <T> T getAggregateOrDefault(@NonNull Cursor cursor, @Nullable T defaultValue, @NonNull Function<Integer, T> cursorColumnFn) {
-    if (cursor.moveToFirst()) {
-      return cursorColumnFn.apply(0);
-    } else {
-      return defaultValue;
-    }
   }
 }

@@ -26,7 +26,9 @@ import com.bumptech.glide.util.Executors;
 
 import org.signal.core.util.logging.Log;
 import org.thoughtcrime.securesms.R;
+import org.thoughtcrime.securesms.mediasend.camerax.CameraXModePolicy;
 import org.thoughtcrime.securesms.permissions.Permissions;
+import org.thoughtcrime.securesms.util.ContextUtil;
 import org.thoughtcrime.securesms.util.Debouncer;
 import org.thoughtcrime.securesms.util.MemoryFileDescriptor;
 import org.thoughtcrime.securesms.video.VideoUtil;
@@ -51,6 +53,7 @@ class CameraXVideoCaptureHelper implements CameraButtonView.VideoCaptureListener
   private final @NonNull MemoryFileDescriptor memoryFileDescriptor;
   private final @NonNull ValueAnimator        updateProgressAnimator;
   private final @NonNull Debouncer            debouncer;
+  private final @NonNull CameraXModePolicy    cameraXModePolicy;
 
   private ValueAnimator cameraMetricsAnimator;
 
@@ -81,6 +84,7 @@ class CameraXVideoCaptureHelper implements CameraButtonView.VideoCaptureListener
                             @NonNull CameraController cameraController,
                             @NonNull PreviewView previewView,
                             @NonNull MemoryFileDescriptor memoryFileDescriptor,
+                            @NonNull CameraXModePolicy cameraXModePolicy,
                             int maxVideoDurationSec,
                             @NonNull Callback callback)
   {
@@ -89,11 +93,19 @@ class CameraXVideoCaptureHelper implements CameraButtonView.VideoCaptureListener
     this.previewView            = previewView;
     this.memoryFileDescriptor   = memoryFileDescriptor;
     this.callback               = callback;
-    this.updateProgressAnimator = ValueAnimator.ofFloat(0f, 1f).setDuration(TimeUnit.SECONDS.toMillis(maxVideoDurationSec));
+
+    float animationScale = ContextUtil.getAnimationScale(fragment.requireContext());
+    long  baseDuration   = TimeUnit.SECONDS.toMillis(maxVideoDurationSec);
+    long  scaledDuration = Math.round(animationScale > 0f ? (baseDuration * (1f / animationScale)) : baseDuration);
+
+    this.updateProgressAnimator = ValueAnimator.ofFloat(0f, 1f).setDuration(scaledDuration);
     this.debouncer              = new Debouncer(TimeUnit.SECONDS.toMillis(maxVideoDurationSec));
+    this.cameraXModePolicy      = cameraXModePolicy;
 
     updateProgressAnimator.setInterpolator(new LinearInterpolator());
-    updateProgressAnimator.addUpdateListener(anim -> captureButton.setProgress(anim.getAnimatedFraction()));
+    updateProgressAnimator.addUpdateListener(anim -> {
+      captureButton.setProgress(anim.getAnimatedFraction());
+    });
   }
 
   @Override
@@ -123,6 +135,7 @@ class CameraXVideoCaptureHelper implements CameraButtonView.VideoCaptureListener
 
   @SuppressLint("RestrictedApi")
   private void beginCameraRecording() {
+    cameraXModePolicy.setToVideo(cameraController);
     this.cameraController.setZoomRatio(Objects.requireNonNull(this.cameraController.getZoomState().getValue()).getMinZoomRatio());
     callback.onVideoRecordStarted();
     shrinkCaptureArea();
@@ -196,6 +209,7 @@ class CameraXVideoCaptureHelper implements CameraButtonView.VideoCaptureListener
 
     updateProgressAnimator.cancel();
     debouncer.clear();
+    cameraXModePolicy.setToImage(cameraController);
   }
 
   @Override

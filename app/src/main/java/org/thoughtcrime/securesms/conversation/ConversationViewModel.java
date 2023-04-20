@@ -59,6 +59,7 @@ import io.reactivex.rxjava3.core.BackpressureStrategy;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.processors.PublishProcessor;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.reactivex.rxjava3.subjects.BehaviorSubject;
@@ -71,6 +72,7 @@ public class ConversationViewModel extends ViewModel {
   private final Application                           context;
   private final MediaRepository                       mediaRepository;
   private final ConversationRepository                conversationRepository;
+  private final ScheduledMessagesRepository           scheduledMessagesRepository;
   private final MutableLiveData<List<Media>>          recentMedia;
   private final BehaviorSubject<Long>                 threadId;
   private final Observable<MessageData>               messageData;
@@ -97,6 +99,7 @@ public class ConversationViewModel extends ViewModel {
   private final CompositeDisposable                   disposables;
   private final BehaviorSubject<Unit>                 conversationStateTick;
   private final PublishProcessor<Long>                markReadRequestPublisher;
+  private final Observable<Integer>                   scheduledMessageCount;
 
   private ConversationIntents.Args args;
   private int                      jumpToPosition;
@@ -105,6 +108,7 @@ public class ConversationViewModel extends ViewModel {
     this.context                        = ApplicationDependencies.getApplication();
     this.mediaRepository                = new MediaRepository();
     this.conversationRepository         = new ConversationRepository();
+    this.scheduledMessagesRepository    = new ScheduledMessagesRepository();
     this.recentMedia                    = new MutableLiveData<>();
     this.showScrollButtons              = new MutableLiveData<>(false);
     this.hasUnreadMentions              = new MutableLiveData<>(false);
@@ -122,7 +126,7 @@ public class ConversationViewModel extends ViewModel {
     this.recipientId                    = BehaviorSubject.create();
     this.threadId                       = BehaviorSubject.create();
     this.groupAuthorNameColorHelper     = new GroupAuthorNameColorHelper();
-    this.conversationStateStore         = new RxStore<>(ConversationState.create(), Schedulers.io());
+    this.conversationStateStore         = new RxStore<>(ConversationState.create(), Schedulers.computation());
     this.disposables                    = new CompositeDisposable();
     this.conversationStateTick          = BehaviorSubject.createDefault(Unit.INSTANCE);
     this.markReadRequestPublisher       = PublishProcessor.create();
@@ -135,10 +139,12 @@ public class ConversationViewModel extends ViewModel {
         .map(Recipient::resolved)
         .subscribe(recipientCache);
 
-    conversationStateStore.update(Observable.combineLatest(recipientId.distinctUntilChanged(), conversationStateTick, (id, tick) -> id)
-                                            .switchMap(conversationRepository::getSecurityInfo)
-                                            .toFlowable(BackpressureStrategy.LATEST),
-                                  (securityInfo, state) -> state.withSecurityInfo(securityInfo));
+    Disposable disposable = conversationStateStore.update(Observable.combineLatest(recipientId.distinctUntilChanged(), conversationStateTick, (id, tick) -> id)
+                                                                    .switchMap(conversationRepository::getSecurityInfo)
+                                                                    .toFlowable(BackpressureStrategy.LATEST),
+                                                          (securityInfo, state) -> state.withSecurityInfo(securityInfo));
+
+    disposables.add(disposable);
 
     BehaviorSubject<ConversationData> conversationMetadata = BehaviorSubject.create();
 
@@ -196,7 +202,11 @@ public class ConversationViewModel extends ViewModel {
         .withLatestFrom(conversationMetadata, (messages, metadata) ->  new MessageData(metadata, messages))
         .doOnNext(a -> SignalLocalMetrics.ConversationOpen.onDataLoaded());
 
-    Observable<Recipient> liveRecipient = recipientId.distinctUntilChanged().switchMap(id -> Recipient.live(id).asObservable());
+    scheduledMessageCount = threadId
+        .observeOn(Schedulers.io())
+        .switchMap(scheduledMessagesRepository::getScheduledMessageCount);
+
+    Observable<Recipient> liveRecipient = recipientId.distinctUntilChanged().switchMap(id -> Recipient.live(id).observable());
 
     canShowAsBubble = threadId.observeOn(Schedulers.io()).map(conversationRepository::canShowAsBubble);
     wallpaper       = liveRecipient.map(r -> Optional.ofNullable(r.getWallpaper())).distinctUntilChanged();
@@ -248,6 +258,15 @@ public class ConversationViewModel extends ViewModel {
         }
       });
     }
+  }
+
+  void setDistributionType(int distributionType) {
+    Long threadId = this.threadId.getValue();
+    if (threadId == null) {
+      return;
+    }
+
+    conversationRepository.setConversationDistributionType(threadId, distributionType);
   }
 
   void submitMarkReadRequest(long timestampSince) {
@@ -328,6 +347,10 @@ public class ConversationViewModel extends ViewModel {
     return conversationStateStore.getState().getSecurityInfo().isPushAvailable();
   }
 
+  void muteConversation(long until) {
+    conversationRepository.setConversationMuted(args.getRecipientId(), until);
+  }
+
   @NonNull ConversationState getConversationStateSnapshot() {
     return conversationStateStore.getState();
   }
@@ -365,6 +388,10 @@ public class ConversationViewModel extends ViewModel {
   @NonNull Observable<ChatColors> getChatColors() {
     return chatColors
         .observeOn(AndroidSchedulers.mainThread());
+  }
+
+  @NonNull Observable<Integer> getScheduledMessageCount() {
+    return scheduledMessageCount.observeOn(AndroidSchedulers.mainThread());
   }
 
   void setHasUnreadMentions(boolean hasUnreadMentions) {
@@ -435,7 +462,12 @@ public class ConversationViewModel extends ViewModel {
     ApplicationDependencies.getDatabaseObserver().unregisterObserver(messageUpdateObserver);
     ApplicationDependencies.getDatabaseObserver().unregisterObserver(messageInsertObserver);
     disposables.clear();
+    conversationStateStore.dispose();
     EventBus.getDefault().unregister(this);
+  }
+
+  public void insertSmsExportUpdateEvent(@NonNull Recipient recipient) {
+    conversationRepository.insertSmsExportUpdateEvent(recipient);
   }
 
   enum Event {

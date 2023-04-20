@@ -7,10 +7,12 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
+import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.avatar.view.AvatarView
 import org.thoughtcrime.securesms.badges.BadgeImageView
@@ -51,7 +53,9 @@ object StoriesLandingItem {
     val onGoToChat: (Model) -> Unit,
     val onSave: (Model) -> Unit,
     val onDeleteStory: (Model) -> Unit,
-    val onInfo: (Model, View) -> Unit
+    val onInfo: (Model, View) -> Unit,
+    val onLockList: () -> Unit,
+    val onUnlockList: () -> Unit
   ) : MappingModel<Model> {
     override fun areItemsTheSame(newItem: Model): Boolean {
       return data.storyRecipient.id == newItem.data.storyRecipient.id
@@ -61,6 +65,7 @@ object StoriesLandingItem {
       return data.storyRecipient.hasSameContent(newItem.data.storyRecipient) &&
         data == newItem.data &&
         !hasStatusChange(newItem) &&
+        !hasThumbChange(newItem) &&
         (data.sendingCount == newItem.data.sendingCount && data.failureCount == newItem.data.failureCount) &&
         data.storyViewState == newItem.data.storyViewState
     }
@@ -85,14 +90,36 @@ object StoriesLandingItem {
         newRecord.isOutgoing &&
         (oldRecord.isPending != newRecord.isPending || oldRecord.isSent != newRecord.isSent || oldRecord.isFailed != newRecord.isFailed)
     }
+
+    private fun hasThumbChange(newItem: Model): Boolean {
+      val oldRecord = data.primaryStory.messageRecord as? MediaMmsMessageRecord ?: return false
+      val newRecord = newItem.data.primaryStory.messageRecord as? MediaMmsMessageRecord ?: return false
+
+      val oldThumb = oldRecord.slideDeck.thumbnailSlide?.uri
+      val newThumb = newRecord.slideDeck.thumbnailSlide?.uri
+
+      if (oldThumb != newThumb) {
+        return true
+      }
+
+      val oldBlur = oldRecord.slideDeck.thumbnailSlide?.placeholderBlur
+      val newBlur = newRecord.slideDeck.thumbnailSlide?.placeholderBlur
+
+      return oldBlur != newBlur
+    }
   }
 
   private class ViewHolder(itemView: View) : MappingViewHolder<Model>(itemView) {
+
+    companion object {
+      private val TAG = Log.tag(ViewHolder::class.java)
+    }
 
     private val avatarView: AvatarView = itemView.findViewById(R.id.avatar)
     private val badgeView: BadgeImageView = itemView.findViewById(R.id.badge)
     private val storyPreview: ImageView = itemView.findViewById<ImageView>(R.id.story).apply {
       isClickable = false
+      ViewCompat.setTransitionName(this, "story")
     }
     private val storyBlur: ImageView = itemView.findViewById<ImageView>(R.id.story_blur).apply {
       isClickable = false
@@ -108,7 +135,6 @@ object StoriesLandingItem {
     private val addToStoriesView: View = itemView.findViewById(R.id.add_to_story)
 
     override fun bind(model: Model) {
-
       presentDateOrStatus(model)
       setUpClickListeners(model)
 
@@ -130,6 +156,10 @@ object StoriesLandingItem {
 
       val thumbnail = record.slideDeck.thumbnailSlide?.uri
       val blur = record.slideDeck.thumbnailSlide?.placeholderBlur
+
+      if (thumbnail == null && blur == null && !record.storyType.isTextStory) {
+        Log.w(TAG, "Story[${record.dateSent}] has no thumbnail and no blur!")
+      }
 
       clearGlide()
       storyBlur.visible = blur != null
@@ -201,7 +231,7 @@ object StoriesLandingItem {
       icon.setImageResource(
         when {
           model.data.hasReplies -> R.drawable.ic_messages_solid_20
-          else -> R.drawable.ic_reply_24_solid_tinted
+          else -> R.drawable.symbol_reply_fill_24
         }
       )
 
@@ -265,7 +295,11 @@ object StoriesLandingItem {
 
     private fun displayContext(model: Model) {
       itemView.isSelected = true
-      StoryContextMenu.show(context, itemView, storyPreview, model) { itemView.isSelected = false }
+      model.onLockList()
+      StoryContextMenu.show(context, itemView, storyPreview, model) {
+        itemView.isSelected = false
+        model.onUnlockList()
+      }
     }
 
     private fun clearGlide() {

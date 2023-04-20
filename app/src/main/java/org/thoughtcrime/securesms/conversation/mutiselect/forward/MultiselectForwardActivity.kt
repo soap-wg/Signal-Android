@@ -6,8 +6,12 @@ import android.os.Bundle
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.appcompat.widget.Toolbar
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import org.signal.core.util.getParcelableArrayListExtraCompat
+import org.signal.core.util.getParcelableExtraCompat
+import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.FragmentWrapperActivity
 import org.thoughtcrime.securesms.contacts.paged.ContactSearchKey
@@ -16,10 +20,11 @@ import org.thoughtcrime.securesms.conversation.mutiselect.forward.MultiselectFor
 open class MultiselectForwardActivity : FragmentWrapperActivity(), MultiselectForwardFragment.Callback, SearchConfigurationProvider {
 
   companion object {
+    private val TAG = Log.tag(MultiselectForwardActivity::class.java)
     private const val ARGS = "args"
   }
 
-  private val args: MultiselectForwardFragmentArgs get() = intent.getParcelableExtra(ARGS)!!
+  private val args: MultiselectForwardFragmentArgs get() = intent.getParcelableExtraCompat(ARGS, MultiselectForwardFragmentArgs::class.java)!!
 
   override val contentViewId: Int = R.layout.multiselect_forward_activity
 
@@ -35,10 +40,13 @@ open class MultiselectForwardActivity : FragmentWrapperActivity(), MultiselectFo
     return MultiselectForwardFragment.create(args)
   }
 
-  override fun onFinishForwardAction() = Unit
+  override fun onFinishForwardAction() {
+    Log.d(TAG, "Completed forward action...")
+  }
 
   override fun exitFlow() {
-    onBackPressedDispatcher.onBackPressed()
+    Log.d(TAG, "Exiting flow...")
+    ActivityCompat.finishAfterTransition(this)
   }
 
   override fun onSearchInputFocused() = Unit
@@ -67,8 +75,8 @@ open class MultiselectForwardActivity : FragmentWrapperActivity(), MultiselectFo
       } else if (intent == null || !intent.hasExtra(RESULT_SELECTION)) {
         throw IllegalStateException("Selection contract requires a selection.")
       } else {
-        val selection: List<ContactSearchKey.ParcelableRecipientSearchKey> = intent.getParcelableArrayListExtra(RESULT_SELECTION)!!
-        selection.map { it.asRecipientSearchKey() }
+        val selection: List<ContactSearchKey.RecipientSearchKey> = intent.getParcelableArrayListExtraCompat(RESULT_SELECTION, ContactSearchKey.RecipientSearchKey::class.java)!!
+        selection
       }
     }
   }

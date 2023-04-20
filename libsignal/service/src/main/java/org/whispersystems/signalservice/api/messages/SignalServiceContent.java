@@ -69,7 +69,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public final class SignalServiceContent {
+import javax.annotation.Nullable;
+
+@SuppressWarnings("OptionalIsPresent") public final class SignalServiceContent {
 
   private static final String TAG = SignalServiceContent.class.getSimpleName();
 
@@ -492,7 +494,7 @@ public final class SignalServiceContent {
     return serializedState.toByteArray();
   }
 
-  public static SignalServiceContent deserialize(byte[] data) {
+  public static @Nullable SignalServiceContent deserialize(byte[] data) {
     try {
       if (data == null) return null;
 
@@ -508,7 +510,7 @@ public final class SignalServiceContent {
   /**
    * Takes internal protobuf serialization format and processes it into a {@link SignalServiceContent}.
    */
-  public static SignalServiceContent createFromProto(SignalServiceContentProto serviceContentProto)
+  public static @Nullable SignalServiceContent createFromProto(SignalServiceContentProto serviceContentProto)
       throws ProtocolInvalidMessageException, ProtocolInvalidKeyException, UnsupportedDataMessageException, InvalidMessageStructureException
   {
     SignalServiceMetadata metadata     = SignalServiceMetadataProtobufSerializer.fromProtobuf(serviceContentProto.getMetadata());
@@ -678,10 +680,10 @@ public final class SignalServiceContent {
     Optional<SignalServiceGroupV2> groupContext = Optional.ofNullable(groupInfoV2);
 
     List<SignalServiceAttachment>            attachments      = new LinkedList<>();
-    boolean                                  idTokens         = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.ID_TOKENS_VALUE              ) != 0);
-    boolean                                  endSession       = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.END_SESSION_VALUE            ) != 0);
+    boolean                                  idTokens         = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.ID_TOKENS_VALUE) != 0);
+    boolean                                  endSession       = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.END_SESSION_VALUE) != 0);
     boolean                                  expirationUpdate = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.EXPIRATION_TIMER_UPDATE_VALUE) != 0);
-    boolean                                  profileKeyUpdate = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.PROFILE_KEY_UPDATE_VALUE     ) != 0);
+    boolean                                  profileKeyUpdate = ((content.getFlags() & SignalServiceProtos.DataMessage.Flags.PROFILE_KEY_UPDATE_VALUE) != 0);
     boolean                                  isGroupV2        = groupInfoV2 != null;
     SignalServiceDataMessage.Quote           quote            = createQuote(content, isGroupV2);
     List<SharedContact>                      sharedContacts   = createSharedContacts(content);
@@ -693,6 +695,7 @@ public final class SignalServiceContent {
     SignalServiceDataMessage.GroupCallUpdate groupCallUpdate  = createGroupCallUpdate(content);
     SignalServiceDataMessage.StoryContext    storyContext     = createStoryContext(content);
     SignalServiceDataMessage.GiftBadge       giftBadge        = createGiftBadge(content);
+    List<SignalServiceProtos.BodyRange>      bodyRanges       = createBodyRanges(content.getBodyRangesList(), content.getBody());
 
     if (content.getRequiredProtocolVersion() > SignalServiceProtos.DataMessage.ProtocolVersion.CURRENT_VALUE) {
       throw new UnsupportedDataMessageProtocolVersionException(SignalServiceProtos.DataMessage.ProtocolVersion.CURRENT_VALUE,
@@ -722,28 +725,31 @@ public final class SignalServiceContent {
                                                  metadata.getSenderDevice());
     }
 
-    return new SignalServiceDataMessage(metadata.getTimestamp(),
-                                        groupInfoV2,
-                                        attachments,
-                                        content.hasBody() ? content.getBody() : null,
-                                        idTokens,
-                                        endSession,
-                                        content.getExpireTimer(),
-                                        expirationUpdate,
-                                        content.hasProfileKey() ? content.getProfileKey().toByteArray() : null,
-                                        profileKeyUpdate,
-                                        quote,
-                                        sharedContacts,
-                                        previews,
-                                        mentions,
-                                        sticker,
-                                        content.getIsViewOnce(),
-                                        reaction,
-                                        remoteDelete,
-                                        groupCallUpdate,
-                                        payment,
-                                        storyContext,
-                                        giftBadge);
+    return SignalServiceDataMessage.newBuilder()
+                                   .withTimestamp(metadata.getTimestamp())
+                                   .asGroupMessage(groupInfoV2)
+                                   .withAttachments(attachments)
+                                   .withBody(content.hasBody() ? content.getBody() : null)
+                                   .asEndSessionMessage(endSession)
+                                   .withExpiration(content.getExpireTimer())
+                                   .asExpirationUpdate(expirationUpdate)
+                                   .withProfileKey(content.hasProfileKey() ? content.getProfileKey().toByteArray() : null)
+                                   .asProfileKeyUpdate(profileKeyUpdate)
+                                   .asIdTokenMessage(idTokens)
+                                   .withQuote(quote)
+                                   .withSharedContacts(sharedContacts)
+                                   .withPreviews(previews)
+                                   .withMentions(mentions)
+                                   .withSticker(sticker)
+                                   .withViewOnce(content.getIsViewOnce())
+                                   .withReaction(reaction)
+                                   .withRemoteDelete(remoteDelete)
+                                   .withGroupCallUpdate(groupCallUpdate)
+                                   .withPayment(payment)
+                                   .withStoryContext(storyContext)
+                                   .withGiftBadge(giftBadge)
+                                   .withBodyRanges(bodyRanges)
+                                   .build();
   }
 
   private static SignalServiceSyncMessage createSynchronizeMessage(SignalServiceMetadata metadata,
@@ -765,8 +771,10 @@ public final class SignalServiceContent {
 
       if (!address.isPresent()                                                        &&
           !dataMessage.flatMap(SignalServiceDataMessage::getGroupContext).isPresent() &&
-          !storyMessage.flatMap(SignalServiceStoryMessage::getGroupContext).isPresent()) {
-        throw new InvalidMessageStructureException("SyncMessage missing both destination and group ID!");
+          !storyMessage.flatMap(SignalServiceStoryMessage::getGroupContext).isPresent() &&
+          recipientManifest.isEmpty())
+      {
+        throw new InvalidMessageStructureException("SyncMessage missing destination, group ID, and recipient manifest!");
       }
 
       for (SignalServiceProtos.SyncMessage.Sent.UnidentifiedDeliveryStatus status : sentContent.getUnidentifiedStatusList()) {
@@ -994,6 +1002,10 @@ public final class SignalServiceContent {
       return SignalServiceSyncMessage.forContacts(new ContactsMessage(createAttachmentPointer(content.getContacts().getBlob()), content.getContacts().getComplete()));
     }
 
+    if (content.hasCallEvent()) {
+      return SignalServiceSyncMessage.forCallEvent(content.getCallEvent());
+    }
+
     return SignalServiceSyncMessage.empty();
   }
 
@@ -1084,16 +1096,18 @@ public final class SignalServiceContent {
       return SignalServiceStoryMessage.forFileAttachment(profileKey,
                                                          createGroupV2Info(content),
                                                          createAttachmentPointer(content.getFileAttachment()),
-                                                         content.getAllowsReplies());
+                                                         content.getAllowsReplies(),
+                                                         content.getBodyRangesList());
     } else {
       return SignalServiceStoryMessage.forTextAttachment(profileKey,
                                                          createGroupV2Info(content),
                                                          createTextAttachment(content.getTextAttachment()),
-                                                         content.getAllowsReplies());
+                                                         content.getAllowsReplies(),
+                                                         content.getBodyRangesList());
     }
   }
 
-  private static SignalServiceDataMessage.Quote createQuote(SignalServiceProtos.DataMessage content, boolean isGroupV2)
+  private static @Nullable SignalServiceDataMessage.Quote createQuote(SignalServiceProtos.DataMessage content, boolean isGroupV2)
       throws  InvalidMessageStructureException
   {
     if (!content.hasQuote()) return null;
@@ -1113,14 +1127,15 @@ public final class SignalServiceContent {
                                                 content.getQuote().getText(),
                                                 attachments,
                                                 createMentions(content.getQuote().getBodyRangesList(), content.getQuote().getText(), isGroupV2),
-                                                SignalServiceDataMessage.Quote.Type.fromProto(content.getQuote().getType()));
+                                                SignalServiceDataMessage.Quote.Type.fromProto(content.getQuote().getType()),
+                                                createBodyRanges(content.getQuote().getBodyRangesList(), content.getQuote().getText()));
     } else {
       Log.w(TAG, "Quote was missing an author! Returning null.");
       return null;
     }
   }
 
-  private static List<SignalServicePreview> createPreviews(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
+  private static @Nullable List<SignalServicePreview> createPreviews(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
     if (content.getPreviewCount() <= 0) return null;
 
     List<SignalServicePreview> results = new LinkedList<>();
@@ -1146,7 +1161,7 @@ public final class SignalServiceContent {
                                     Optional.ofNullable(attachment));
   }
 
-  private static List<SignalServiceDataMessage.Mention> createMentions(List<SignalServiceProtos.DataMessage.BodyRange> bodyRanges, String body, boolean isGroupV2)
+  private static @Nullable List<SignalServiceDataMessage.Mention> createMentions(List<SignalServiceProtos.BodyRange> bodyRanges, String body, boolean isGroupV2)
       throws InvalidMessageStructureException
   {
     if (bodyRanges == null || bodyRanges.isEmpty() || body == null) {
@@ -1155,7 +1170,7 @@ public final class SignalServiceContent {
 
     List<SignalServiceDataMessage.Mention> mentions = new LinkedList<>();
 
-    for (SignalServiceProtos.DataMessage.BodyRange bodyRange : bodyRanges) {
+    for (SignalServiceProtos.BodyRange bodyRange : bodyRanges) {
       if (bodyRange.hasMentionUuid()) {
         try {
           mentions.add(new SignalServiceDataMessage.Mention(ServiceId.parseOrThrow(bodyRange.getMentionUuid()), bodyRange.getStart(), bodyRange.getLength()));
@@ -1172,7 +1187,23 @@ public final class SignalServiceContent {
     return mentions;
   }
 
-  private static SignalServiceDataMessage.Sticker createSticker(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
+  private static @Nullable List<SignalServiceProtos.BodyRange> createBodyRanges(List<SignalServiceProtos.BodyRange> bodyRanges, String body) {
+    if (bodyRanges == null || bodyRanges.isEmpty() || body == null) {
+      return null;
+    }
+
+    List<SignalServiceProtos.BodyRange> ranges = new LinkedList<>();
+
+    for (SignalServiceProtos.BodyRange bodyRange : bodyRanges) {
+      if (bodyRange.hasStyle()) {
+        ranges.add(bodyRange);
+      }
+    }
+
+    return ranges;
+  }
+
+  private static @Nullable SignalServiceDataMessage.Sticker createSticker(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
     if (!content.hasSticker()                ||
         !content.getSticker().hasPackId()    ||
         !content.getSticker().hasPackKey()   ||
@@ -1191,7 +1222,7 @@ public final class SignalServiceContent {
                                                 createAttachmentPointer(sticker.getData()));
   }
 
-  private static SignalServiceDataMessage.Reaction createReaction(SignalServiceProtos.DataMessage content) {
+  private static @Nullable SignalServiceDataMessage.Reaction createReaction(SignalServiceProtos.DataMessage content) {
     if (!content.hasReaction()                           ||
         !content.getReaction().hasEmoji()                ||
         !content.getReaction().hasTargetAuthorUuid()     ||
@@ -1214,7 +1245,7 @@ public final class SignalServiceContent {
                                                  reaction.getTargetSentTimestamp());
   }
 
-  private static SignalServiceDataMessage.RemoteDelete createRemoteDelete(SignalServiceProtos.DataMessage content) {
+  private static @Nullable SignalServiceDataMessage.RemoteDelete createRemoteDelete(SignalServiceProtos.DataMessage content) {
     if (!content.hasDelete() || !content.getDelete().hasTargetSentTimestamp()) {
       return null;
     }
@@ -1224,7 +1255,7 @@ public final class SignalServiceContent {
     return new SignalServiceDataMessage.RemoteDelete(delete.getTargetSentTimestamp());
   }
 
-  private static SignalServiceDataMessage.GroupCallUpdate createGroupCallUpdate(SignalServiceProtos.DataMessage content) {
+  private static @Nullable SignalServiceDataMessage.GroupCallUpdate createGroupCallUpdate(SignalServiceProtos.DataMessage content) {
     if (!content.hasGroupCallUpdate()) {
       return null;
     }
@@ -1234,7 +1265,7 @@ public final class SignalServiceContent {
     return new SignalServiceDataMessage.GroupCallUpdate(groupCallUpdate.getEraId());
   }
 
-  private static SignalServiceDataMessage.Payment createPayment(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
+  private static @Nullable SignalServiceDataMessage.Payment createPayment(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
     if (!content.hasPayment()) {
       return null;
     }
@@ -1242,12 +1273,16 @@ public final class SignalServiceContent {
     SignalServiceProtos.DataMessage.Payment payment = content.getPayment();
 
     switch (payment.getItemCase()) {
-      case NOTIFICATION: return new SignalServiceDataMessage.Payment(createPaymentNotification(payment));
-      default          : throw new InvalidMessageStructureException("Unknown payment item");
+      case NOTIFICATION:
+        return new SignalServiceDataMessage.Payment(createPaymentNotification(payment), null);
+      case ACTIVATION:
+        return new SignalServiceDataMessage.Payment(null, createPaymentActivation(payment));
+      default:
+        throw new InvalidMessageStructureException("Unknown payment item");
     }
   }
 
-  private static SignalServiceDataMessage.StoryContext createStoryContext(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
+  private static @Nullable SignalServiceDataMessage.StoryContext createStoryContext(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
     if (!content.hasStoryContext()) {
       return null;
     }
@@ -1261,7 +1296,7 @@ public final class SignalServiceContent {
     return new SignalServiceDataMessage.StoryContext(serviceId, content.getStoryContext().getSentTimestamp());
   }
 
-  private static SignalServiceDataMessage.GiftBadge createGiftBadge(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
+  private static @Nullable SignalServiceDataMessage.GiftBadge createGiftBadge(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
     if (!content.hasGiftBadge()) {
       return null;
     }
@@ -1292,7 +1327,21 @@ public final class SignalServiceContent {
     return new SignalServiceDataMessage.PaymentNotification(payment.getMobileCoin().getReceipt().toByteArray(), payment.getNote());
   }
 
-  private static List<SharedContact> createSharedContacts(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
+  private static SignalServiceDataMessage.PaymentActivation createPaymentActivation(SignalServiceProtos.DataMessage.Payment content)
+      throws InvalidMessageStructureException
+  {
+    if (!content.hasActivation() ||
+        content.getItemCase() != SignalServiceProtos.DataMessage.Payment.ItemCase.ACTIVATION)
+    {
+      throw new InvalidMessageStructureException("Badly-formatted payment activation!");
+    }
+
+    SignalServiceProtos.DataMessage.Payment.Activation payment = content.getActivation();
+
+    return new SignalServiceDataMessage.PaymentActivation(payment.getType());
+  }
+
+  public static @Nullable List<SharedContact> createSharedContacts(SignalServiceProtos.DataMessage content) throws InvalidMessageStructureException {
     if (content.getContactCount() <= 0) return null;
 
     List<SharedContact> results = new LinkedList<>();
@@ -1451,21 +1500,21 @@ public final class SignalServiceContent {
     }
   }
 
-  private static SignalServiceGroupV2 createGroupV2Info(SignalServiceProtos.StoryMessage storyMessage) throws InvalidMessageStructureException {
+  private static @Nullable SignalServiceGroupV2 createGroupV2Info(SignalServiceProtos.StoryMessage storyMessage) throws InvalidMessageStructureException {
     if (!storyMessage.hasGroup()) {
       return null;
     }
     return createGroupV2Info(storyMessage.getGroup());
   }
 
-  private static SignalServiceGroupV2 createGroupV2Info(SignalServiceProtos.DataMessage dataMessage) throws InvalidMessageStructureException {
+  private static @Nullable SignalServiceGroupV2 createGroupV2Info(SignalServiceProtos.DataMessage dataMessage) throws InvalidMessageStructureException {
     if (!dataMessage.hasGroupV2()) {
       return null;
     }
     return createGroupV2Info(dataMessage.getGroupV2());
   }
 
-  private static SignalServiceGroupV2 createGroupV2Info(SignalServiceProtos.GroupContextV2 groupV2) throws InvalidMessageStructureException {
+  private static @Nullable SignalServiceGroupV2 createGroupV2Info(SignalServiceProtos.GroupContextV2 groupV2) throws InvalidMessageStructureException {
     if (groupV2 == null) {
       return null;
     }
