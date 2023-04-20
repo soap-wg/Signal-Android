@@ -8,11 +8,12 @@ import android.widget.ImageView
 import androidx.core.view.OneShotPreDrawListener
 import androidx.fragment.app.Fragment
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
+import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.qr.QrScannerView
 import org.signal.qr.kitkat.ScanListener
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.ShapeScrim
-import org.thoughtcrime.securesms.util.LifecycleDisposable
+import org.thoughtcrime.securesms.mediasend.camerax.CameraXModelBlocklist
 import org.thoughtcrime.securesms.util.ViewUtil
 import org.thoughtcrime.securesms.util.fragments.findListener
 
@@ -40,7 +41,7 @@ class VerifyScanFragment : Fragment() {
       ViewUtil.updateLayoutParams(cameraMarks, width, height)
     }
 
-    cameraView.start(viewLifecycleOwner)
+    cameraView.start(viewLifecycleOwner, CameraXModelBlocklist.isBlocklisted())
 
     lifecycleDisposable.bindTo(viewLifecycleOwner)
 

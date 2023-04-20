@@ -9,6 +9,7 @@ import org.thoughtcrime.securesms.dependencies.ApplicationDependencies
 import org.thoughtcrime.securesms.mms.DecryptableStreamUriLoader
 import org.thoughtcrime.securesms.mms.Slide
 import org.thoughtcrime.securesms.providers.BlobProvider
+import org.thoughtcrime.securesms.util.BitmapDecodingException
 import org.thoughtcrime.securesms.util.ImageCompressionUtil
 import org.thoughtcrime.securesms.util.kb
 import org.thoughtcrime.securesms.util.mb
@@ -48,7 +49,7 @@ object NotificationThumbnails {
       return NotificationItem.ThumbnailInfo(thumbnailSlide.publicUri, thumbnailSlide.contentType)
     }
 
-    val messageId = MessageId(notificationItem.id, notificationItem.isMms)
+    val messageId = MessageId(notificationItem.id)
     val thumbnail: CachedThumbnail? = synchronized(thumbnailCache) { thumbnailCache[messageId] }
 
     if (thumbnail != null) {
@@ -67,14 +68,19 @@ object NotificationThumbnails {
       val uri = thumbnailSlide.uri
 
       if (uri != null) {
-        val result = ImageCompressionUtil.compressWithinConstraints(
-          context,
-          thumbnailSlide.contentType,
-          DecryptableStreamUriLoader.DecryptableUri(uri),
-          1024,
-          TARGET_SIZE,
-          60
-        )
+        val result: ImageCompressionUtil.Result? = try {
+          ImageCompressionUtil.compressWithinConstraints(
+            context,
+            thumbnailSlide.contentType,
+            DecryptableStreamUriLoader.DecryptableUri(uri),
+            1024,
+            TARGET_SIZE,
+            60
+          )
+        } catch (e: BitmapDecodingException) {
+          Log.i(TAG, "Unable to decode bitmap", e)
+          null
+        }
 
         if (result != null) {
           val thumbnailUri = BlobProvider
@@ -104,7 +110,7 @@ object NotificationThumbnails {
   }
 
   fun removeAllExcept(notificationItems: List<NotificationItem>) {
-    val currentMessages = notificationItems.map { MessageId(it.id, it.isMms) }
+    val currentMessages = notificationItems.map { MessageId(it.id) }
     synchronized(thumbnailCache) {
       thumbnailCache.keys.removeIf { !currentMessages.contains(it) }
     }

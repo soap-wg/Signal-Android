@@ -17,20 +17,23 @@ sealed class UsernameState {
   object NoUsername : UsernameState()
 
   data class Reserved(
+    override val username: String,
     val reserveUsernameResponse: ReserveUsernameResponse
-  ) : UsernameState() {
-    override val username: String? = reserveUsernameResponse.username
-  }
+  ) : UsernameState()
 
   data class Set(
     override val username: String
   ) : UsernameState()
 
   fun getNickname(): String? {
-    return username?.split('#')?.firstOrNull()
+    return username?.split(DELIMITER)?.firstOrNull()
   }
 
   fun getDiscriminator(): String? {
-    return username?.split('#')?.lastOrNull()
+    return username?.split(DELIMITER)?.lastOrNull()
+  }
+
+  companion object {
+    const val DELIMITER = "."
   }
 }

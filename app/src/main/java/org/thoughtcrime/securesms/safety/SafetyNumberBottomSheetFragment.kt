@@ -7,6 +7,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.viewModels
 import com.google.android.material.button.MaterialButton
 import org.signal.core.util.DimensionUnit
+import org.signal.core.util.concurrent.LifecycleDisposable
 import org.signal.core.util.logging.Log
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.WrapperDialogFragment
@@ -20,9 +21,8 @@ import org.thoughtcrime.securesms.components.settings.models.SplashImage
 import org.thoughtcrime.securesms.conversation.ui.error.SafetyNumberChangeRepository
 import org.thoughtcrime.securesms.conversation.ui.error.TrustAndVerifyResult
 import org.thoughtcrime.securesms.crypto.IdentityKeyParcelable
-import org.thoughtcrime.securesms.database.IdentityDatabase
+import org.thoughtcrime.securesms.database.IdentityTable
 import org.thoughtcrime.securesms.safety.review.SafetyNumberReviewConnectionsFragment
-import org.thoughtcrime.securesms.util.LifecycleDisposable
 import org.thoughtcrime.securesms.util.fragments.findListener
 import org.thoughtcrime.securesms.util.visible
 import org.thoughtcrime.securesms.verify.VerifyIdentityFragment
@@ -156,7 +156,7 @@ class SafetyNumberBottomSheetFragment : DSLSettingsBottomSheetFragment(layoutId 
           customPref(
             SafetyNumberRecipientRowItem.Model(
               recipient = it.recipient,
-              isVerified = it.identityRecord.verifiedStatus == IdentityDatabase.VerifiedStatus.VERIFIED,
+              isVerified = it.identityRecord.verifiedStatus == IdentityTable.VerifiedStatus.VERIFIED,
               distributionListMembershipCount = it.distributionListMembershipCount,
               groupMembershipCount = it.groupMembershipCount,
               getContextMenuActions = { model ->

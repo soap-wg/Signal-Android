@@ -5,8 +5,7 @@
     android:id="@+id/content"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    tools:viewBindingIgnore="true">
+    android:orientation="vertical">
 
     <org.thoughtcrime.securesms.util.views.DarkOverflowToolbar
         android:id="@+id/toolbar"
@@ -49,7 +48,7 @@
                         android:scaleType="centerCrop"
                         android:translationX="-28dp"
                         app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.WallpaperPreview"
-                        tools:background="@color/red" />
+                        tools:background="@color/red_500" />
 
                     <com.google.android.material.imageview.ShapeableImageView
                         android:id="@+id/preview_media_1"
@@ -61,7 +60,7 @@
                         app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Signal.WallpaperPreview"
                         app:strokeColor="@color/signal_colorBackground"
                         app:strokeWidth="3dp"
-                        tools:background="@color/green" />
+                        tools:background="@color/green_500" />
 
                 </FrameLayout>
 

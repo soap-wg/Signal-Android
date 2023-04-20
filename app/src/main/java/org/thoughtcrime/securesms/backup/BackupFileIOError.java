@@ -10,6 +10,7 @@ import androidx.annotation.StringRes;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
+import org.signal.core.util.PendingIntentFlags;
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.components.settings.app.AppSettingsActivity;
 import org.thoughtcrime.securesms.notifications.NotificationCancellationHelper;
@@ -40,8 +41,8 @@ public enum BackupFileIOError {
   }
 
   public void postNotification(@NonNull Context context) {
-    PendingIntent pendingIntent           = PendingIntent.getActivity(context, -1, AppSettingsActivity.backups(context), 0);
-    Notification backupFailedNotification = new NotificationCompat.Builder(context, NotificationChannels.FAILURES)
+    PendingIntent pendingIntent           = PendingIntent.getActivity(context, -1, AppSettingsActivity.backups(context), PendingIntentFlags.mutable());
+    Notification backupFailedNotification = new NotificationCompat.Builder(context, NotificationChannels.getInstance().FAILURES)
                                                                   .setSmallIcon(R.drawable.ic_signal_backup)
                                                                   .setContentTitle(context.getString(titleId))
                                                                   .setContentText(context.getString(messageId))

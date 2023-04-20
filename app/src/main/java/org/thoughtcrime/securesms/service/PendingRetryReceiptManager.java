@@ -11,7 +11,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.WorkerThread;
 
 import org.signal.core.util.logging.Log;
-import org.thoughtcrime.securesms.database.MessageDatabase;
+import org.thoughtcrime.securesms.database.MessageTable;
 import org.thoughtcrime.securesms.database.PendingRetryReceiptCache;
 import org.thoughtcrime.securesms.database.SignalDatabase;
 import org.thoughtcrime.securesms.database.model.PendingRetryReceiptModel;
@@ -27,13 +27,13 @@ public final class PendingRetryReceiptManager extends TimedEventManager<PendingR
   private static final String TAG = Log.tag(PendingRetryReceiptManager.class);
 
   private final PendingRetryReceiptCache pendingCache;
-  private final MessageDatabase          messageDatabase;
+  private final MessageTable             messageDatabase;
 
   public PendingRetryReceiptManager(@NonNull Application application) {
     super(application, "PendingRetryReceiptManager");
 
     this.pendingCache    = ApplicationDependencies.getPendingRetryReceiptCache();
-    this.messageDatabase = SignalDatabase.sms();
+    this.messageDatabase = SignalDatabase.messages();
 
     scheduleIfNecessary();
   }
@@ -55,8 +55,13 @@ public final class PendingRetryReceiptManager extends TimedEventManager<PendingR
   @WorkerThread
   @Override
   protected void executeEvent(@NonNull PendingRetryReceiptModel event) {
-    Log.w(TAG, "It's been " + (System.currentTimeMillis() - event.getReceivedTimestamp()) + " ms since this retry receipt was received. Showing an error.");
-    messageDatabase.insertBadDecryptMessage(event.getAuthor(), event.getAuthorDevice(), event.getSentTimestamp(), event.getReceivedTimestamp(), event.getThreadId());
+    if (SignalDatabase.threads().containsId(event.getThreadId()) && SignalDatabase.recipients().containsId(event.getAuthor())) {
+      Log.w(TAG, "It's been " + (System.currentTimeMillis() - event.getReceivedTimestamp()) + " ms since this retry receipt was received. Showing an error.");
+      messageDatabase.insertBadDecryptMessage(event.getAuthor(), event.getAuthorDevice(), event.getSentTimestamp(), event.getReceivedTimestamp(), event.getThreadId());
+    } else {
+      Log.w(TAG, "Would normally show an error, but the thread or recipient has since been deleted! ThreadId: " + event.getThreadId() + ", RecipientId: " + event.getAuthor());
+    }
+    
     pendingCache.delete(event);
   }
 
@@ -71,7 +76,7 @@ public final class PendingRetryReceiptManager extends TimedEventManager<PendingR
 
   @AnyThread
   @Override
-  protected void scheduleAlarm(@NonNull Application application, long delay) {
+  protected void scheduleAlarm(@NonNull Application application, PendingRetryReceiptModel event, long delay) {
     setAlarm(application, delay, PendingRetryReceiptAlarm.class);
   }
 

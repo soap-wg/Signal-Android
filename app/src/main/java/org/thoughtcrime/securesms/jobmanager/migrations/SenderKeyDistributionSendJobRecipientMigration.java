@@ -4,11 +4,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
 import org.signal.core.util.logging.Log;
-import org.thoughtcrime.securesms.database.GroupDatabase;
-import org.thoughtcrime.securesms.database.GroupDatabase.GroupRecord;
+import org.thoughtcrime.securesms.database.GroupTable;
+import org.thoughtcrime.securesms.database.model.GroupRecord;
 import org.thoughtcrime.securesms.database.SignalDatabase;
 import org.thoughtcrime.securesms.groups.GroupId;
-import org.thoughtcrime.securesms.jobmanager.Data;
+import org.thoughtcrime.securesms.jobmanager.JsonJobData;
 import org.thoughtcrime.securesms.jobmanager.JobMigration;
 import org.thoughtcrime.securesms.jobs.FailingJob;
 
@@ -22,14 +22,14 @@ public class SenderKeyDistributionSendJobRecipientMigration extends JobMigration
 
   private static final String TAG = Log.tag(SenderKeyDistributionSendJobRecipientMigration.class);
 
-  private final GroupDatabase groupDatabase;
+  private final GroupTable groupDatabase;
 
   public SenderKeyDistributionSendJobRecipientMigration() {
     this(SignalDatabase.groups());
   }
 
   @VisibleForTesting
-  SenderKeyDistributionSendJobRecipientMigration(GroupDatabase groupDatabase) {
+  SenderKeyDistributionSendJobRecipientMigration(GroupTable groupDatabase) {
     super(9);
     this.groupDatabase = groupDatabase;
   }
@@ -43,8 +43,8 @@ public class SenderKeyDistributionSendJobRecipientMigration extends JobMigration
     }
   }
 
-  private static @NonNull JobData migrateJob(@NonNull JobData jobData, @NonNull GroupDatabase groupDatabase) {
-    Data data = jobData.getData();
+  private static @NonNull JobData migrateJob(@NonNull JobData jobData, @NonNull GroupTable groupDatabase) {
+    JsonJobData data = JsonJobData.deserialize(jobData.getData());
 
     if (data.hasString("group_id")) {
       GroupId               groupId = GroupId.pushOrThrow(data.getStringAsBlob("group_id"));
@@ -53,7 +53,7 @@ public class SenderKeyDistributionSendJobRecipientMigration extends JobMigration
       if (group.isPresent()) {
         return jobData.withData(data.buildUpon()
                                     .putString("thread_recipient_id", group.get().getRecipientId().serialize())
-                                    .build());
+                                    .serialize());
 
       } else {
         return jobData.withFactoryKey(FailingJob.KEY);

@@ -15,15 +15,16 @@ import org.thoughtcrime.securesms.jobmanager.JobManager;
 import org.thoughtcrime.securesms.megaphone.MegaphoneRepository;
 import org.thoughtcrime.securesms.messages.BackgroundMessageRetriever;
 import org.thoughtcrime.securesms.messages.IncomingMessageObserver;
-import org.thoughtcrime.securesms.messages.IncomingMessageProcessor;
 import org.thoughtcrime.securesms.notifications.MessageNotifier;
 import org.thoughtcrime.securesms.payments.Payments;
 import org.thoughtcrime.securesms.push.SignalServiceNetworkAccess;
 import org.thoughtcrime.securesms.recipients.LiveRecipientCache;
 import org.thoughtcrime.securesms.revealable.ViewOnceMessageManager;
+import org.thoughtcrime.securesms.service.DeletedCallEventManager;
 import org.thoughtcrime.securesms.service.ExpiringMessageManager;
 import org.thoughtcrime.securesms.service.ExpiringStoriesManager;
 import org.thoughtcrime.securesms.service.PendingRetryReceiptManager;
+import org.thoughtcrime.securesms.service.ScheduledMessageManager;
 import org.thoughtcrime.securesms.service.TrimThreadsByDateManager;
 import org.thoughtcrime.securesms.service.webrtc.SignalCallManager;
 import org.thoughtcrime.securesms.shakereport.ShakeToReport;
@@ -45,6 +46,7 @@ import org.whispersystems.signalservice.api.services.ProfileService;
 import org.whispersystems.signalservice.internal.configuration.SignalServiceConfiguration;
 
 import java.security.KeyStore;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 
@@ -72,11 +74,6 @@ public class MockApplicationDependencyProvider implements ApplicationDependencie
 
   @Override
   public @NonNull SignalServiceNetworkAccess provideSignalServiceNetworkAccess() {
-    return null;
-  }
-
-  @Override
-  public @NonNull IncomingMessageProcessor provideIncomingMessageProcessor() {
     return null;
   }
 
@@ -141,6 +138,11 @@ public class MockApplicationDependencyProvider implements ApplicationDependencie
   }
 
   @Override
+  public @NonNull DeletedCallEventManager provideDeletedCallEventManager() {
+    return null;
+  }
+
+  @Override
   public @NonNull TypingStatusRepository provideTypingStatusRepository() {
     return null;
   }
@@ -186,7 +188,7 @@ public class MockApplicationDependencyProvider implements ApplicationDependencie
   }
 
   @Override
-  public @NonNull SignalWebSocket provideSignalWebSocket(@NonNull SignalServiceConfiguration signalServiceConfiguration) {
+  public @NonNull SignalWebSocket provideSignalWebSocket(@NonNull Supplier<SignalServiceConfiguration> signalServiceConfigurationSupplier) {
     return null;
   }
 
@@ -232,6 +234,11 @@ public class MockApplicationDependencyProvider implements ApplicationDependencie
 
   @Override
   public @NonNull KeyBackupService provideKeyBackupService(@NonNull SignalServiceAccountManager signalServiceAccountManager, @NonNull KeyStore keyStore, @NonNull KbsEnclave enclave) {
+    return null;
+  }
+
+  @Override
+  public @NonNull ScheduledMessageManager provideScheduledMessageManager() {
     return null;
   }
 }

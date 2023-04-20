@@ -5,21 +5,20 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import org.signal.core.util.DimensionUnit
+import org.signal.core.util.concurrent.LifecycleDisposable
 import org.thoughtcrime.securesms.R
 import org.thoughtcrime.securesms.components.settings.DSLConfiguration
 import org.thoughtcrime.securesms.components.settings.DSLSettingsFragment
 import org.thoughtcrime.securesms.components.settings.DSLSettingsText
-import org.thoughtcrime.securesms.components.settings.app.subscription.DonationPaymentComponent
 import org.thoughtcrime.securesms.components.settings.app.subscription.models.CurrencySelection
 import org.thoughtcrime.securesms.components.settings.app.subscription.models.NetworkFailure
 import org.thoughtcrime.securesms.components.settings.configure
 import org.thoughtcrime.securesms.components.settings.models.IndeterminateLoadingCircle
 import org.thoughtcrime.securesms.components.settings.models.SplashImage
-import org.thoughtcrime.securesms.util.LifecycleDisposable
 import org.thoughtcrime.securesms.util.ViewUtil
 import org.thoughtcrime.securesms.util.adapter.mapping.MappingAdapter
-import org.thoughtcrime.securesms.util.fragments.requireListener
 import org.thoughtcrime.securesms.util.navigation.safeNavigate
+import java.util.concurrent.TimeUnit
 
 /**
  * Landing fragment for sending gifts.
@@ -30,7 +29,9 @@ class GiftFlowStartFragment : DSLSettingsFragment(
 
   private val viewModel: GiftFlowViewModel by viewModels(
     ownerProducer = { requireActivity() },
-    factoryProducer = { GiftFlowViewModel.Factory(GiftFlowRepository(), requireListener<DonationPaymentComponent>().donationPaymentRepository) }
+    factoryProducer = {
+      GiftFlowViewModel.Factory(GiftFlowRepository())
+    }
   )
 
   private val lifecycleDisposable = LifecycleDisposable()
@@ -70,7 +71,7 @@ class GiftFlowStartFragment : DSLSettingsFragment(
 
       noPadTextPref(
         title = DSLSettingsText.from(
-          R.string.GiftFlowStartFragment__gift_a_badge,
+          R.string.GiftFlowStartFragment__donate_for_a_friend,
           DSLSettingsText.CenterModifier,
           DSLSettingsText.TextAppearanceModifier(R.style.Signal_Text_Headline)
         )
@@ -78,8 +79,9 @@ class GiftFlowStartFragment : DSLSettingsFragment(
 
       space(DimensionUnit.DP.toPixels(16f).toInt())
 
+      val days = state.giftBadge?.duration?.let { TimeUnit.MILLISECONDS.toDays(it) } ?: 60L
       noPadTextPref(
-        title = DSLSettingsText.from(R.string.GiftFlowStartFragment__gift_someone_a_badge, DSLSettingsText.CenterModifier)
+        title = DSLSettingsText.from(resources.getQuantityString(R.plurals.GiftFlowStartFragment__support_signal_by, days.toInt(), days), DSLSettingsText.CenterModifier)
       )
 
       space(DimensionUnit.DP.toPixels(16f).toInt())

@@ -291,8 +291,8 @@ public final class RestoreBackupFragment extends LoggingFragment {
                                         backup.getUri(),
                                         passphrase);
 
-          SignalDatabase.upgradeRestored(database);
-          NotificationChannels.restoreContactNotificationChannels(context);
+          SignalDatabase.runPostBackupRestoreTasks(database);
+          NotificationChannels.getInstance().restoreContactNotificationChannels();
 
           enableBackups(context);
 

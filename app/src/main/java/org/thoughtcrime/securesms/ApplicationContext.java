@@ -23,7 +23,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.annotation.WorkerThread;
-import androidx.appcompat.app.AppCompatDelegate;
 import androidx.multidex.MultiDexApplication;
 
 import com.google.android.gms.security.ProviderInstaller;
@@ -60,6 +59,7 @@ import org.thoughtcrime.securesms.jobs.PnpInitializeDevicesJob;
 import org.thoughtcrime.securesms.jobs.PreKeysSyncJob;
 import org.thoughtcrime.securesms.jobs.ProfileUploadJob;
 import org.thoughtcrime.securesms.jobs.PushNotificationReceiveJob;
+import org.thoughtcrime.securesms.jobs.RefreshKbsCredentialsJob;
 import org.thoughtcrime.securesms.jobs.RetrieveProfileJob;
 import org.thoughtcrime.securesms.jobs.RetrieveRemoteAnnouncementsJob;
 import org.thoughtcrime.securesms.jobs.StoryOnboardingDownloadJob;
@@ -70,9 +70,9 @@ import org.thoughtcrime.securesms.logging.CustomSignalProtocolLogger;
 import org.thoughtcrime.securesms.logging.PersistentLogger;
 import org.thoughtcrime.securesms.messageprocessingalarm.MessageProcessReceiver;
 import org.thoughtcrime.securesms.migrations.ApplicationMigrations;
+import org.thoughtcrime.securesms.mms.GlideApp;
 import org.thoughtcrime.securesms.mms.SignalGlideComponents;
 import org.thoughtcrime.securesms.mms.SignalGlideModule;
-import org.thoughtcrime.securesms.notifications.NotificationChannels;
 import org.thoughtcrime.securesms.providers.BlobProvider;
 import org.thoughtcrime.securesms.ratelimit.RateLimitUtil;
 import org.thoughtcrime.securesms.recipients.Recipient;
@@ -100,6 +100,8 @@ import org.thoughtcrime.securesms.util.dynamiclanguage.DynamicLanguageContextWra
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.security.Security;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.exceptions.OnErrorNotImplementedException;
@@ -120,7 +122,8 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
 
   private static final String TAG = Log.tag(ApplicationContext.class);
 
-  private PersistentLogger persistentLogger;
+  @VisibleForTesting
+  protected PersistentLogger persistentLogger;
 
   public static ApplicationContext getInstance(Context context) {
     return (ApplicationContext)context.getApplicationContext();
@@ -155,19 +158,12 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
                             .addBlocking("rx-init", this::initializeRx)
                             .addBlocking("event-bus", () -> EventBus.builder().logNoSubscriberMessages(false).installDefaultEventBus())
                             .addBlocking("app-dependencies", this::initializeAppDependencies)
-                            .addBlocking("notification-channels", () -> NotificationChannels.create(this))
                             .addBlocking("first-launch", this::initializeFirstEverAppLaunch)
                             .addBlocking("app-migrations", this::initializeApplicationMigrations)
-                            .addBlocking("ring-rtc", this::initializeRingRtc)
-                            .addBlocking("mark-registration", () -> RegistrationUtil.maybeMarkRegistrationComplete(this))
+                            .addBlocking("mark-registration", () -> RegistrationUtil.maybeMarkRegistrationComplete())
                             .addBlocking("lifecycle-observer", () -> ApplicationDependencies.getAppForegroundObserver().addListener(this))
                             .addBlocking("message-retriever", this::initializeMessageRetrieval)
                             .addBlocking("dynamic-theme", () -> DynamicTheme.setDefaultDayNightMode(this))
-                            .addBlocking("vector-compat", () -> {
-                              if (Build.VERSION.SDK_INT < 21) {
-                                AppCompatDelegate.setCompatVectorFromResourcesEnabled(true);
-                              }
-                            })
                             .addBlocking("proxy-init", () -> {
                               if (SignalStore.proxy().isProxyEnabled()) {
                                 Log.w(TAG, "Proxy detected. Enabling Conscrypt.setUseEngineSocketByDefault()");
@@ -176,10 +172,13 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
                             })
                             .addBlocking("blob-provider", this::initializeBlobProvider)
                             .addBlocking("feature-flags", FeatureFlags::init)
+                            .addBlocking("ring-rtc", this::initializeRingRtc)
                             .addBlocking("glide", () -> SignalGlideModule.setRegisterGlideComponents(new SignalGlideComponents()))
+                            .addNonBlocking(() -> GlideApp.get(this))
                             .addNonBlocking(this::cleanAvatarStorage)
                             .addNonBlocking(this::initializeRevealableMessageManager)
                             .addNonBlocking(this::initializePendingRetryReceiptManager)
+                            .addNonBlocking(this::initializeScheduledMessageManager)
                             .addNonBlocking(this::initializeFcmCheck)
                             .addNonBlocking(PreKeysSyncJob::enqueueIfNeeded)
                             .addNonBlocking(this::initializePeriodicTasks)
@@ -193,10 +192,12 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
                             .addNonBlocking(() -> ApplicationDependencies.getGiphyMp4Cache().onAppStart(this))
                             .addNonBlocking(this::ensureProfileUploaded)
                             .addNonBlocking(() -> ApplicationDependencies.getExpireStoriesManager().scheduleIfNecessary())
+                            .addPostRender(() -> ApplicationDependencies.getDeletedCallEventManager().scheduleIfNecessary())
                             .addPostRender(() -> RateLimitUtil.retryAllRateLimitedMessages(this))
                             .addPostRender(this::initializeExpiringMessageManager)
                             .addPostRender(() -> SignalStore.settings().setDefaultSms(Util.isDefaultSmsProvider(this)))
                             .addPostRender(this::initializeTrimThreadsByDateManager)
+                            .addPostRender(RefreshKbsCredentialsJob::enqueueIfNecessary)
                             .addPostRender(() -> DownloadLatestEmojiDataJob.scheduleIfNecessary(this))
                             .addPostRender(EmojiSearchIndexDownloadJob::scheduleIfNecessary)
                             .addPostRender(() -> SignalDatabase.messageLog().trimOldMessages(System.currentTimeMillis(), FeatureFlags.retryRespondMaxAge()))
@@ -208,6 +209,8 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
                             .addPostRender(GroupV2UpdateSelfProfileKeyJob::enqueueForGroupsIfNecessary)
                             .addPostRender(StoryOnboardingDownloadJob.Companion::enqueueIfNeeded)
                             .addPostRender(PnpInitializeDevicesJob::enqueueIfNecessary)
+                            .addPostRender(() -> ApplicationDependencies.getExoPlayerPool().getPoolStats().getMaxUnreserved())
+                            .addPostRender(() -> ApplicationDependencies.getRecipientCache().warmUp())
                             .execute();
 
     Log.d(TAG, "onCreate() took " + (System.currentTimeMillis() - startTime) + " ms");
@@ -227,7 +230,6 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
 
     SignalExecutors.BOUNDED.execute(() -> {
       FeatureFlags.refreshIfNecessary();
-      ApplicationDependencies.getRecipientCache().warmUp();
       RetrieveProfileJob.enqueueRoutineFetchIfNecessary(this);
       executePendingContactSync();
       KeyCachingService.onAppForegrounded(this);
@@ -293,7 +295,8 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
     }
   }
 
-  private void initializeLogging() {
+  @VisibleForTesting
+  protected void initializeLogging() {
     persistentLogger = new PersistentLogger(this);
     org.signal.core.util.logging.Log.initialize(FeatureFlags::internalUser, new AndroidLogger(), persistentLogger);
 
@@ -387,6 +390,10 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
     ApplicationDependencies.getPendingRetryReceiptManager().scheduleIfNecessary();
   }
 
+  private void initializeScheduledMessageManager() {
+    ApplicationDependencies.getScheduledMessageManager().scheduleIfNecessary();
+  }
+
   private void initializeTrimThreadsByDateManager() {
     KeepMessagesDuration keepMessagesDuration = SignalStore.settings().getKeepMessagesDuration();
     if (keepMessagesDuration != KeepMessagesDuration.FOREVER) {
@@ -408,7 +415,11 @@ public class ApplicationContext extends MultiDexApplication implements AppForegr
 
   private void initializeRingRtc() {
     try {
-      CallManager.initialize(this, new RingRtcLogger());
+      Map<String, String> fieldTrials = new HashMap<>();
+      if (FeatureFlags.callingFieldTrialAnyAddressPortsKillSwitch()) {
+        fieldTrials.put("RingRTC-AnyAddressPortsKillSwitch", "Enabled");
+      }
+      CallManager.initialize(this, new RingRtcLogger(), fieldTrials);
     } catch (UnsatisfiedLinkError e) {
       throw new AssertionError("Unable to load ringrtc library", e);
     }

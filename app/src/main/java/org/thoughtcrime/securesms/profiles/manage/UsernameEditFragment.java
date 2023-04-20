@@ -36,7 +36,7 @@ import org.thoughtcrime.securesms.contactshare.SimpleTextWatcher;
 import org.thoughtcrime.securesms.databinding.UsernameEditFragmentBinding;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.util.FragmentResultContract;
-import org.thoughtcrime.securesms.util.LifecycleDisposable;
+import org.signal.core.util.concurrent.LifecycleDisposable;
 import org.thoughtcrime.securesms.util.UsernameUtil;
 import org.thoughtcrime.securesms.util.ViewUtil;
 import org.thoughtcrime.securesms.util.views.CircularProgressMaterialButton;
@@ -168,6 +168,7 @@ public class UsernameEditFragment extends LoggingFragment {
 
     presentSuffix(state.getUsername());
     presentButtonState(state.getButtonState());
+    presentSummary(state.getUsername());
 
     switch (state.getUsernameStatus()) {
       case NONE:
@@ -200,6 +201,10 @@ public class UsernameEditFragment extends LoggingFragment {
 
         break;
     }
+
+    CharSequence error = usernameInputWrapper.getError();
+    binding.usernameError.setVisibility(error != null ? View.VISIBLE : View.GONE);
+    binding.usernameError.setText(usernameInputWrapper.getError());
   }
 
   private void presentButtonState(@NonNull UsernameEditViewModel.ButtonState buttonState) {
@@ -207,6 +212,14 @@ public class UsernameEditFragment extends LoggingFragment {
       presentRegistrationButtonState(buttonState);
     } else {
       presentProfileUpdateButtonState(buttonState);
+    }
+  }
+
+  private void presentSummary(@NonNull UsernameState usernameState) {
+    if (usernameState.getUsername() != null) {
+      binding.summary.setText(usernameState.getUsername());
+    } else {
+      binding.summary.setText(R.string.UsernameEditFragment__choose_your_username);
     }
   }
 
