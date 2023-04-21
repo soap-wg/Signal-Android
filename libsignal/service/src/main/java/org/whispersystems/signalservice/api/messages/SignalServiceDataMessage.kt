@@ -152,7 +152,7 @@ class SignalServiceDataMessage private constructor(
     }
 
     @JvmOverloads
-    fun asIdTokenMessage(idTokens: Boolean = true) {
+    fun asIdTokenMessage(idTokens: Boolean = true): Builder {
       this.idTokens = idTokens
       return this
     }

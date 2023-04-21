@@ -247,7 +247,6 @@ import org.thoughtcrime.securesms.mms.VideoSlide;
 import org.thoughtcrime.securesms.notifications.NotificationChannels;
 import org.thoughtcrime.securesms.notifications.v2.ConversationId;
 import org.thoughtcrime.securesms.oidcauth.OIDCFlowActivity;
-import org.thoughtcrime.securesms.oidcauth.OutgoingIdTokenMessage;
 import org.thoughtcrime.securesms.oidcauth.ProviderSelectionActivity;
 import org.thoughtcrime.securesms.permissions.Permissions;
 import org.thoughtcrime.securesms.profiles.spoofing.ReviewBannerView;
@@ -831,7 +830,7 @@ public class ConversationParentFragment extends Fragment
         break;
       }
 
-      OutgoingIdTokenMessage msg = OutgoingIdTokenMessage.fromTokens(
+      OutgoingMessage msg = OutgoingMessage.idTokenMessageFromTokens(
           recipient,
           salt,
           tokens,
@@ -843,7 +842,7 @@ public class ConversationParentFragment extends Fragment
           requireContext().getApplicationContext(),
           msg,
           threadId,
-          false,
+          SendType.SIGNAL,
           null,
           null
       );

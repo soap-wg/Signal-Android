@@ -573,7 +573,7 @@ public abstract class MessageRecord extends DisplayRecord {
   }
 
   public boolean isIdTokenType() {
-    return MmsSmsColumns.Types.isIdTokenType(type);
+    return MessageTypes.isIdTokenType(type);
   }
 
   public boolean isInvalidVersionKeyExchange() {

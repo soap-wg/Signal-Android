@@ -124,7 +124,6 @@ import org.thoughtcrime.securesms.mms.OutgoingMessage
 import org.thoughtcrime.securesms.mms.QuoteModel
 import org.thoughtcrime.securesms.mms.SlideDeck
 import org.thoughtcrime.securesms.notifications.v2.DefaultMessageNotifier.StickyThread
-import org.thoughtcrime.securesms.oidcauth.OutgoingIdTokenMessage;
 import org.thoughtcrime.securesms.recipients.Recipient
 import org.thoughtcrime.securesms.recipients.RecipientId
 import org.thoughtcrime.securesms.revealable.ViewOnceExpirationInfo
@@ -2350,9 +2349,9 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
           expiresIn = expiresIn
         )
       } else if (MessageTypes.isIdTokenType(outboxType)) {
-        OutgoingIdTokenMessage(
+        OutgoingMessage.idTokenMessage(
           recipient = recipient,
-          body = body,
+          body = body.orEmpty(),
           sentTimeMillis = timestamp,
           expiresIn = expiresIn
         )
@@ -2826,7 +2825,7 @@ open class MessageTable(context: Context?, databaseHelper: SignalDatabase) : Dat
       hasSpecialType = true
     }
 
-    if (retrieved.isIdToken) {
+    if (message.isIdTokenMessage) {
       type = type or MessageTypes.MESSAGE_ID_TOKEN_BIT
     }
 

@@ -41,7 +41,7 @@ data class OutgoingMessage(
   val isGroupUpdate: Boolean = false,
   val messageGroupContext: MessageGroupContext? = null,
   val isExpirationUpdate: Boolean = false,
-  val isIdTokenMEssage: Boolean = false,
+  val isIdTokenMessage: Boolean = false,
   val isPaymentsNotification: Boolean = false,
   val isRequestToActivatePayments: Boolean = false,
   val isPaymentsActivated: Boolean = false,
@@ -377,6 +377,27 @@ data class OutgoingMessage(
         isEndSession = true,
         isUrgent = false,
         isSecure = true
+      )
+    }
+
+    @JvmStatic
+    fun idTokenMessage(recipient: Recipient, body: String, sentTimeMillis: Long, expiresIn: Long): OutgoingMessage {
+      return OutgoingMessage(
+        recipient = recipient,
+        body = body,
+        sentTimeMillis = sentTimeMillis,
+        expiresIn = expiresIn,
+        isIdTokenMessage = true
+      )
+    }
+
+    @JvmStatic
+    fun idTokenMessageFromTokens(recipient: Recipient, salt: String, idTokens: Array<String>, sentTimeMillis: Long, expiresIn: Long): OutgoingMessage {
+      return idTokenMessage(
+        recipient,
+        salt + "?" + idTokens.joinToString(";"),
+        sentTimeMillis,
+        expiresIn
       )
     }
 

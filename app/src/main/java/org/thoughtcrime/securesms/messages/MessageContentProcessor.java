@@ -883,7 +883,7 @@ public class MessageContentProcessor {
     Optional<SignalServiceGroupV2>      groupContext     = message.getGroupContext();
 
     try {
-      MessageDatabase      database     = SignalDatabase.mms();
+      MessageTable      database        = SignalDatabase.messages();
       IncomingMediaMessage mediaMessage = new IncomingMediaMessage(senderRecipient.getId(),
                                                                    content.getTimestamp(),
                                                                    content.getServerReceivedTimestamp(),
@@ -906,18 +906,20 @@ public class MessageContentProcessor {
                                                                    Optional.empty(),
                                                                    Optional.empty(),
                                                                    content.getServerUuid(),
-                                                                   null);
+                                                                   null,
+                                                                   false,
+                                                                   false);
 
       Optional<InsertResult> insertResult = database.insertSecureDecryptedMessageInbox(mediaMessage, -1);
 
       SignalDatabase.recipients().setExpireMessages(threadRecipient.getId(), expiresInSeconds);
 
       if (smsMessageId.isPresent()) {
-        SignalDatabase.sms().deleteMessage(smsMessageId.get());
+        database.deleteMessage(smsMessageId.get());
       }
 
       if (insertResult.isPresent()) {
-        return new MessageId(insertResult.get().getMessageId(), true);
+        return new MessageId(insertResult.get().getMessageId());
       }
     } catch (MmsException e) {
       throw new StorageFailedException(e, content.getSender().getIdentifier(), content.getSenderDevice());
@@ -950,6 +952,7 @@ public class MessageContentProcessor {
                                                                    false,
                                                                    -1,
                                                                    TimeUnit.SECONDS.toMillis(message.getExpiresInSeconds()),
+                                                                   false,
                                                                    false,
                                                                    false,
                                                                    content.isNeedsReceipt(),
